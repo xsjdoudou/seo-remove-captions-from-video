@@ -119,6 +119,17 @@ export async function signInWithGoogle(credential: string): Promise<User> {
   return (body as { user: User }).user
 }
 
+export async function passwordAuth(email: string, password: string, confirmPassword?: string): Promise<User> {
+  const response = await fetch(`/api/auth/${confirmPassword === undefined ? 'login' : 'register'}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', accept: 'application/json' },
+    body: JSON.stringify({ email, password, confirmPassword }),
+  })
+  const body = await readJson(response)
+  if (!response.ok) throw toApiError(body, response.status)
+  return (body as { user: User }).user
+}
+
 export async function signOut(): Promise<void> {
   await fetch('/api/auth/session', { method: 'DELETE' }).catch(() => undefined)
 }

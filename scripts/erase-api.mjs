@@ -29,11 +29,14 @@ import {
   signSession,
   userIdForGoogle,
   verifyGoogleIdToken,
+  hashPassword,
+  verifyPassword,
 } from './auth.mjs'
 import { sanitizeFilename, videoExtension, contentTypeFor, probeDurationSeconds, ACCEPT_ATTRIBUTE } from './media.mjs'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const SWEEP_INTERVAL_MS = 10 * 60 * 1000
+const AUTH_WINDOW_MS = 15 * 60 * 1000
 
 export async function createHandler(config = loadConfig()) {
   await fsp.mkdir(config.sourceDir, { recursive: true })
@@ -43,6 +46,7 @@ export async function createHandler(config = loadConfig()) {
   await store.load()
   const users = new UserStore(config.usersFile)
   await users.load()
+  const authAttempts = new Map()
   const pipeline = new Pipeline(config, store)
   pipeline.resume()
 
@@ -74,8 +78,7 @@ export async function createHandler(config = loadConfig()) {
   if (!config.auth.googleClientId) {
     console.warn(
       `[api] \x1b[33mGoogle sign-in is off\x1b[0m — GOOGLE_CLIENT_ID is unset.\n` +
-        `      The site still works anonymously; visitors just keep their history in localStorage\n` +
-        `      instead of their account.\n`,
+        `      Email sign-in and anonymous access remain available.\n`,
     )
   } else if (!config.auth.cookieSecure) {
     // 这一条在本地是正常的，在生产是个会把会话 cookie 暴露在明文里的事故。
@@ -107,6 +110,9 @@ export async function createHandler(config = loadConfig()) {
       if (route === '/api/config') return sendJson(res, 200, publicConfig(config))
 
       if (route === '/api/auth/google' && req.method === 'POST') return await signIn(req, res, { config, users })
+      if ((route === '/api/auth/register' || route === '/api/auth/login') && req.method === 'POST') {
+        return await passwordSignIn(req, res, { config, users, authAttempts, register: route.endsWith('/register') })
+      }
       if (route === '/api/auth/session') {
         if (req.method === 'GET') return sendJson(res, 200, { user: publicUser(session) })
         if (req.method === 'DELETE') return signOut(res, config)
@@ -178,6 +184,54 @@ export function currentUser(req, config, users) {
 function publicUser(user) {
   if (!user) return null
   return { id: user.id, email: user.email ?? '', name: user.name ?? '', picture: user.picture ?? '' }
+}
+
+async function passwordSignIn(req, res, { config, users, authAttempts, register }) {
+  if (!/^application\/json(?:\s*;|$)/i.test(req.headers['content-type'] || '')) {
+    return sendJson(res, 415, { error: { code: 'bad_request', message: 'Expected JSON.' } })
+  }
+  const now = Date.now()
+  for (const [key, value] of authAttempts) if (value.reset <= now) authAttempts.delete(key)
+  const ip = clientIp(req, config)
+  let attempts = authAttempts.get(ip)
+  if (!attempts) {
+    if (authAttempts.size >= 10000) return sendJson(res, 429, { error: { code: 'rate_limit', message: 'Please try again later.' } })
+    attempts = { count: 0, reset: now + AUTH_WINDOW_MS }
+    authAttempts.set(ip, attempts)
+  }
+  if (++attempts.count > 20) return sendJson(res, 429, { error: { code: 'rate_limit', message: 'Too many attempts. Please try again later.' } })
+  let body
+  try {
+    body = await readJsonBody(req)
+  } catch {
+    return sendJson(res, 400, { error: { code: 'bad_request', message: 'Could not read the request.' } })
+  }
+  const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : ''
+  const password = typeof body?.password === 'string' ? body.password : ''
+  if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || password.length < 8 || password.length > 200) {
+    return sendJson(res, 400, { error: { code: 'invalid_credentials', message: 'Enter a valid email and a password between 8 and 200 characters.' } })
+  }
+  if (register && password !== body?.confirmPassword) {
+    return sendJson(res, 400, { error: { code: 'password_mismatch', message: 'Passwords do not match.' } })
+  }
+  let user
+  if (register) {
+    const passwordHash = await hashPassword(password)
+    user = users.createPasswordAccount(email, passwordHash)
+    if (!user) return sendJson(res, 409, { error: { code: 'account_exists', message: 'An email account already exists. Sign in instead.' } })
+  } else {
+    user = users.findPasswordAccount(email)
+    const placeholder = `scrypt$${'0'.repeat(32)}$${'0'.repeat(128)}`
+    const valid = await verifyPassword(password, user?.passwordHash ?? placeholder)
+    if (!user || !valid) {
+      return sendJson(res, 401, { error: { code: 'invalid_credentials', message: 'Email or password is incorrect.' } })
+    }
+  }
+  await users.flush()
+  res.setHeader('set-cookie', serializeCookie(SESSION_COOKIE, signSession(user.id, config.auth.sessionSecret), {
+    maxAgeMs: SESSION_TTL_MS, secure: config.auth.cookieSecure,
+  }))
+  return sendJson(res, register ? 201 : 200, { user: publicUser(user) })
 }
 
 async function signIn(req, res, { config, users }) {

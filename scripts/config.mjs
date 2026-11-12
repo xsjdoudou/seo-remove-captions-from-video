@@ -117,8 +117,7 @@ export function loadConfig() {
     jobTimeoutMs: int('JOB_TIMEOUT_MS', 60 * 60 * 1000, { min: 60_000 }),
 
     auth: {
-      // 没配 client id 就是"登录功能没开"：前端据此不渲染登录按钮，
-      // 匿名流程一切照旧。这是可选功能，缺配置不该让服务起不来。
+      // 不配置时只关闭 Google 登录，邮箱密码登录仍可用。
       googleClientId: str('GOOGLE_CLIENT_ID'),
       sessionSecret: resolveSessionSecret(dataDir),
       // 会话 cookie 带不带 Secure。生产必须带；本地 http://127.0.0.1 上带了

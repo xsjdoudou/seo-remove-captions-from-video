@@ -258,6 +258,9 @@ curl -s https://removetextfromvideo.io/api/config    # googleClientId 应该有�
 
 登录是**可选**的。不登录照样能用全部功能——这个站的转化路径就是"打开、拖文件、
 拿结果"，加一道登录墙等于把它堵死。登录换来的只有一件事：历史跟着账号走。
+支持邮箱密码注册、登录，以及可选的 Google 登录。密码使用随机盐和 scrypt 哈希存储。
+两种账号即使邮箱相同也不会自动合并；当前不提供邮箱验证或密码重置，用户需妥善保管密码。
+邮箱登录接口有单进程、按 IP 的基础限流；生产环境应在反向代理层进一步防护。
 
 | | 未登录 | 已登录 |
 | --- | --- | --- |
@@ -309,9 +312,7 @@ curl -s https://removetextfromvideo.io/api/config    # googleClientId 应该有�
 
 ### 关掉登录
 
-不填 `GOOGLE_CLIENT_ID` 就是关掉：导航栏不显示登录入口，前端也不会加载 GIS，
-整站退回到纯匿名模式。已经存在的账号数据不受影响，填回去就恢复。
+不填 `GOOGLE_CLIENT_ID` 会关掉 Google 登录并停止加载 GIS；邮箱账号登录仍然可用。
 
 改了 `RETENTION_MS` 或 `RECORD_RETENTION_MS` 记得同步改
 `src/components/LegalPage.tsx` 里写的天数，以及 `HistoryList.tsx` 底部那行提示。
-

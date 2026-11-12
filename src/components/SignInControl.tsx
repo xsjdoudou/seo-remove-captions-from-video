@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { getAuthState, mountGoogleButton, signOut, subscribeAuth, type AuthState } from '../lib/auth'
+import { getAuthState, mountGoogleButton, signInWithPassword, signOut, subscribeAuth, type AuthState } from '../lib/auth'
 
 /**
  * 导航栏右侧的登录区。
@@ -20,8 +20,65 @@ export default function SignInControl() {
   // 服务端没配 GOOGLE_CLIENT_ID，或者还没问出结果：不占位、不闪烁。
   // 预渲染出来的 HTML 里本来就没有这块，首帧画一个"登录"再换成头像
   // 会造成一次可见的跳动。
-  if (!auth.clientId || auth.loading) return null
-  return auth.user ? <AccountMenu auth={auth} /> : <GoogleButton />
+  if (auth.loading) return null
+  return auth.user ? <AccountMenu auth={auth} /> : <AuthDialog clientId={auth.clientId} />
+}
+
+function AuthDialog({ clientId }: { clientId: string }) {
+  const [open, setOpen] = useState(false)
+  const [register, setRegister] = useState(false)
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    if (!open) return
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape' && !busy) setOpen(false) }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [open, busy])
+
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault()
+    if (register && password !== confirm) { setError('Passwords do not match.'); return }
+    setBusy(true)
+    setError('')
+    try {
+      await signInWithPassword(email, password, register ? confirm : undefined)
+      setOpen(false)
+      setPassword('')
+      setConfirm('')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Sign-in failed.')
+    } finally { setBusy(false) }
+  }
+
+  return (
+    <div className="auth">
+      <button className="btn btn--ghost btn--sm" type="button" onClick={() => setOpen(true)}>Sign in</button>
+      {open && (
+        <div className="auth-dialog__backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) setOpen(false) }}>
+          <section className="auth-dialog" role="dialog" aria-modal="true" aria-labelledby="auth-title">
+            <button className="auth-dialog__close" type="button" aria-label="Close" title="Close" onClick={() => setOpen(false)}>×</button>
+            <h2 id="auth-title">{register ? 'Create account' : 'Sign in'}</h2>
+            {clientId && <GoogleButton />}
+            <form onSubmit={(event) => void submit(event)}>
+              <label>Email<input type="email" autoComplete="email" required maxLength={254} value={email} onChange={(event) => setEmail(event.target.value)} /></label>
+              <label>Password<input type="password" autoComplete={register ? 'new-password' : 'current-password'} required minLength={8} maxLength={200} value={password} onChange={(event) => setPassword(event.target.value)} /></label>
+              {register && <label>Confirm password<input type="password" autoComplete="new-password" required minLength={8} maxLength={200} value={confirm} onChange={(event) => setConfirm(event.target.value)} /></label>}
+              {error && <p className="auth-dialog__error" role="alert">{error}</p>}
+              <button className="btn btn--primary" type="submit" disabled={busy}>{busy ? 'Please wait…' : register ? 'Create account' : 'Sign in'}</button>
+            </form>
+            <button className="auth-dialog__switch" type="button" onClick={() => { setRegister(!register); setError(''); setConfirm('') }}>
+              {register ? 'Already have an account? Sign in' : 'New here? Create an account'}
+            </button>
+          </section>
+        </div>
+      )}
+    </div>
+  )
 }
 
 function GoogleButton() {

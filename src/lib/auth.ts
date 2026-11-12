@@ -9,7 +9,7 @@
  * 不会因为这个功能多下载一个字节，也不会被 Google 看到一次请求。
  */
 
-import { fetchSession, signInWithGoogle, signOut as signOutRequest, type User } from './api'
+import { fetchSession, passwordAuth, signInWithGoogle, signOut as signOutRequest, type User } from './api'
 
 export type { User }
 
@@ -17,7 +17,7 @@ export interface AuthState {
   user: User | null
   /** 还没问过服务端。首帧据此不闪一下"未登录"。 */
   loading: boolean
-  /** 服务端配了 GOOGLE_CLIENT_ID 才为真；否则整个登录入口都不显示。 */
+  /** Google 客户端 ID；未配置时邮箱登录仍然可用。 */
   clientId: string
 }
 
@@ -42,17 +42,16 @@ function setState(patch: Partial<AuthState>): void {
 /** 页面加载后问一次服务端"我是谁"。clientId 由调用方从 /api/config 带进来。 */
 export async function initAuth(clientId: string): Promise<void> {
   setState({ clientId })
-  if (!clientId) {
-    // 服务端没开登录，就不用再问会话了。
-    setState({ user: null, loading: false })
-    return
-  }
   try {
     setState({ user: await fetchSession(), loading: false })
   } catch {
     // 问不到就当未登录。登录是附加功能，它不可用不该挡住主流程。
     setState({ user: null, loading: false })
   }
+}
+
+export async function signInWithPassword(email: string, password: string, confirmPassword?: string): Promise<void> {
+  setState({ user: await passwordAuth(email, password, confirmPassword) })
 }
 
 // ── Google Identity Services ────────────────────────────────────────────

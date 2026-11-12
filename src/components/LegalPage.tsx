@@ -18,7 +18,7 @@ export function PrivacyPage() {
 
       <p className="article__lede">
         The short version: your video is used for one thing — producing your result — and then it is deleted. You can
-        use the tool without an account, and we do not want your personal data.
+        use the tool without an account; creating one is optional.
       </p>
 
       <h2>What we handle</h2>
@@ -35,7 +35,11 @@ export function PrivacyPage() {
         </li>
         <li>
           <strong>Your Google profile, only if you sign in.</strong> Name, email address and profile picture, as
-          supplied by Google. Nothing else, and nothing at all if you do not sign in.
+          supplied by Google.
+        </li>
+        <li>
+          <strong>Your email account, if you create one.</strong> We store your email address and a salted password
+          hash, not your password in plain text.
         </li>
       </ul>
       <p>
@@ -48,6 +52,10 @@ export function PrivacyPage() {
         If you choose to sign in, your browser loads Google&rsquo;s sign-in script at that moment — not before — and
         Google tells us your account identifier, name, email address and profile picture. We never see your Google
         password, and we ask for no other access to your Google account.
+      </p>
+      <p>
+        You can also create an email and password account. Email accounts and Google accounts are separate, even if
+        they use the same email address.
       </p>
       <p>
         We then set one cookie, so you stay signed in for up to 30 days. It holds a signed reference to your account and

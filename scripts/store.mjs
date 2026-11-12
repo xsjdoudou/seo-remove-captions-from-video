@@ -197,6 +197,15 @@ export class UserStore extends JsonTable {
     super(file, 'users')
   }
 
+  findPasswordAccount(email) {
+    return this.list().find((user) => user.passwordHash && user.email === email) ?? null
+  }
+
+  createPasswordAccount(email, passwordHash) {
+    if (this.findPasswordAccount(email)) return null
+    return this.upsert(`email:${newId()}`, { email, name: email.split('@')[0], picture: '', passwordHash })
+  }
+
   /** 登录成功后写一次。已存在就刷新资料——用户改了头像或名字应该跟着变。 */
   upsert(id, profile) {
     const now = Date.now()

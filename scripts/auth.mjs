@@ -13,6 +13,22 @@
 // 拿它当长期凭证会让用户每小时被踢一次。
 
 import crypto from 'node:crypto'
+import { promisify } from 'node:util'
+
+const scrypt = promisify(crypto.scrypt)
+
+export async function hashPassword(password) {
+  const salt = crypto.randomBytes(16).toString('hex')
+  const key = await scrypt(password, salt, 64)
+  return `scrypt$${salt}$${key.toString('hex')}`
+}
+
+export async function verifyPassword(password, encoded) {
+  const [algorithm, salt, hex] = String(encoded || '').split('$')
+  if (algorithm !== 'scrypt' || !/^[a-f0-9]{32}$/.test(salt || '') || !/^[a-f0-9]{128}$/.test(hex || '')) return false
+  const actual = await scrypt(password, salt, 64)
+  return crypto.timingSafeEqual(actual, Buffer.from(hex, 'hex'))
+}
 
 const GOOGLE_JWKS_URL = 'https://www.googleapis.com/oauth2/v3/certs'
 const GOOGLE_ISSUERS = new Set(['accounts.google.com', 'https://accounts.google.com'])
