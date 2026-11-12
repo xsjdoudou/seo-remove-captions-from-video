@@ -1,0 +1,137 @@
+import { CONTACT_EMAIL, SITE_NAME } from '../config'
+
+/**
+ * 隐私政策与服务条款。
+ *
+ * 写的是这套代码实际在做的事——24 小时清理、不做训练、源文件在成片下载完
+ * 就删掉——而不是抄一份通用模板。模板里那些对不上的条款,既帮不了用户,
+ * 真出事时也帮不了你。改了保留策略记得回来改这一页。
+ */
+
+const UPDATED = 'November 2025'
+
+export function PrivacyPage() {
+  return (
+    <article className="article">
+      <h1 className="article__title">Privacy Policy</h1>
+      <p className="article__meta">Last updated: {UPDATED}</p>
+
+      <p className="article__lede">
+        The short version: your video is used for one thing — producing your result — and then it is deleted. We do not
+        require an account, and we do not want your personal data.
+      </p>
+
+      <h2>What we handle</h2>
+      <ul className="article__list">
+        <li>
+          <strong>The video you upload.</strong> Stored on our server only for as long as it takes to process it.
+        </li>
+        <li>
+          <strong>The processed result.</strong> Stored so you can preview and download it.
+        </li>
+        <li>
+          <strong>Basic request data.</strong> Your IP address and the time of the request, kept alongside the job so we
+          can apply fair-use limits and investigate abuse.
+        </li>
+      </ul>
+      <p>We do not ask for your name, email address or payment details, and there is no account to create.</p>
+
+      <h2>The &ldquo;recent videos&rdquo; list</h2>
+      <p>
+        The list of your recent videos is stored in your own browser, using local storage on your device. It never
+        reaches our servers, and we cannot see it. That is also why it does not follow you to another browser or
+        another device.
+      </p>
+      <p>
+        It holds nothing but the job references and file names you already gave us. Clearing it with the{' '}
+        <em>Clear</em> button, or clearing your browser data, removes it completely.
+      </p>
+
+      <h2>How long files are kept</h2>
+      <p>
+        Your original upload is deleted as soon as the processed video has been retrieved — typically within minutes of
+        the job finishing. Both the original and the result are deleted automatically no more than 24 hours after
+        upload, whether or not you downloaded anything. Deletion is permanent; we keep no backup copies of user videos.
+      </p>
+      <p>You can also delete a job yourself at any time by starting a new one or closing out of the result.</p>
+
+      <h2>Processing</h2>
+      <p>
+        Text removal is performed by a third-party cloud video-processing API. To do its work, that provider fetches
+        your video from our server and returns the processed version. Your video is therefore handled by that provider
+        for the duration of the job, under their own terms, and is not retained by us beyond the window described above.
+      </p>
+
+      <h2>What we never do</h2>
+      <ul className="article__list">
+        <li>We do not publish, share or sell your videos.</li>
+        <li>We do not use your videos to train models.</li>
+        <li>We do not watch or review your content except where we are legally required to.</li>
+        <li>We do not run advertising or third-party tracking scripts on this site.</li>
+        <li>We do not set any cookie. The only thing stored on your device is the recent-videos list described above.</li>
+      </ul>
+
+      <h2>Your choices</h2>
+      <p>
+        Because we store no account and no personal identifiers beyond a short-lived IP record, there is usually nothing
+        left to delete by the time you would ask. If you believe we hold something of yours and you want it removed,
+        write to <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a> and we will deal with it.
+      </p>
+
+      <h2>Changes</h2>
+      <p>
+        If this policy changes in a way that affects how your files are handled, the updated date above will change.
+        Material changes will not be applied retroactively to files already processed.
+      </p>
+    </article>
+  )
+}
+
+export function TermsPage() {
+  return (
+    <article className="article">
+      <h1 className="article__title">Terms of Service</h1>
+      <p className="article__meta">Last updated: {UPDATED}</p>
+
+      <p className="article__lede">
+        By uploading a video to {SITE_NAME} you agree to these terms. They are deliberately short.
+      </p>
+
+      <h2>You must have the right to edit the video</h2>
+      <p>
+        Only upload videos you own or have permission to modify. Removing a watermark, credit or caption from someone
+        else&rsquo;s work without their permission may infringe their rights — and in some places it is a separate
+        offence regardless of copyright. You are responsible for what you upload and for what you do with the result.
+      </p>
+
+      <h2>What is not allowed</h2>
+      <ul className="article__list">
+        <li>Stripping attribution or copyright notices from work that is not yours.</li>
+        <li>Removing identifying marks in order to pass off someone else&rsquo;s work as your own.</li>
+        <li>Uploading illegal content, or content depicting the abuse of a real person.</li>
+        <li>Automated or bulk use that degrades the service for others, or attempts to work around usage limits.</li>
+      </ul>
+      <p>We may refuse or remove any job, and block access, where we believe these terms are being broken.</p>
+
+      <h2>The service is provided as it is</h2>
+      <p>
+        Text removal is a best-effort process, not a guarantee. Some footage will come back imperfect, and some jobs
+        will fail. The service may be unavailable, slow, or changed without notice. We do not promise any particular
+        quality of result, and we are not liable for any loss arising from using it — including the loss of a video you
+        did not keep a copy of. Keep your originals.
+      </p>
+
+      <h2>Your content stays yours</h2>
+      <p>
+        You keep all rights to the videos you upload and to the results. We claim no licence over them beyond what is
+        needed to produce your result, as described in the{' '}
+        <a href="/privacy">Privacy Policy</a>.
+      </p>
+
+      <h2>Contact</h2>
+      <p>
+        Questions about these terms: <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>.
+      </p>
+    </article>
+  )
+}

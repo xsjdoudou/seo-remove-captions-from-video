@@ -1,0 +1,155 @@
+# removetextfromvideo.io —— nginx 参考配置
+#
+#   sudo cp deploy/nginx.conf.example /etc/nginx/sites-available/removetextfromvideo
+#   sudo ln -s /etc/nginx/sites-available/removetextfromvideo /etc/nginx/sites-enabled/
+#   sudo certbot --nginx -d removetextfromvideo.io -d www.removetextfromvideo.io
+#   sudo nginx -t && sudo systemctl reload nginx
+#
+# 分工：nginx 发静态文件(dist/)并终结 TLS，erase-api 只处理
+# /api、/s、/r 三组路径。
+#
+# ⚠ 配这份文件的同时，服务器上的 api.env 必须改两项，否则站是"能开但不能用"：
+#
+#   TRUST_PROXY=true
+#     后端在 nginx 后面，不开这个的话每个请求的来源 IP 都是 127.0.0.1，
+#     按 IP 的限流会把全站所有访客算成同一个人——两个并发、一天十个，
+#     全站共用。开了它才会去读下面转发的 X-Forwarded-For。
+#
+#   SOURCE_PUBLIC_BASE=https://removetextfromvideo.io
+#     腾讯云 MPS 会从公网来 GET 源视频。留空时后端直接把服务标成
+#     not ready、拒掉所有上传（首页会显示那条红色横幅）。
+
+upstream erase_api {
+    server 127.0.0.1:10060;
+    keepalive 16;
+}
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name removetextfromvideo.io www.removetextfromvideo.io;
+    # certbot 会把这段改成 301 到 https。
+    return 301 https://removetextfromvideo.io$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name www.removetextfromvideo.io;
+    # 规范化到不带 www 的域名：两个域名都能打开会分散权重，
+    # 而且和页面里的 canonical 对不上。
+    return 301 https://removetextfromvideo.io$request_uri;
+
+    # certbot 填充
+    # ssl_certificate /etc/letsencrypt/live/removetextfromvideo.io/fullchain.pem;
+    # ssl_certificate_key /etc/letsencrypt/live/removetextfromvideo.io/privkey.pem;
+}
+
+# nginx 1.25.1 起 `listen ... http2` 改成了独立的 `http2 on;`，上面那种写法
+# 会在 nginx -t 时报一行 deprecation 警告(仍然生效)。这里保留旧写法是因为
+# Ubuntu 22.04 自带的是 1.18，新写法在那上面直接起不来。
+# 服务器上 nginx >= 1.25.1 的话，把两个 ssl server 块里的 http2 去掉，
+# 各加一行 `http2 on;`。
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name removetextfromvideo.io;
+
+    # certbot 填充
+    # ssl_certificate /etc/letsencrypt/live/removetextfromvideo.io/fullchain.pem;
+    # ssl_certificate_key /etc/letsencrypt/live/removetextfromvideo.io/privkey.pem;
+
+    root /srv/removetextfromvideo/dist;
+    index index.html;
+
+    # 必须 >= .env 里的 MAX_UPLOAD_BYTES，否则 nginx 会在后端看到请求之前
+    # 就回 413，用户拿到的是一个没有样式的 nginx 错误页。
+    client_max_body_size 650M;
+    client_body_timeout 600s;
+
+    # 安全响应头。
+    #
+    # 下面每个 location 里都原样重复了一遍，这不是冗余——nginx 的 add_header
+    # 是"就近覆盖"而不是累加：**只要**某一层写了任意一条 add_header，
+    # 上一层的所有 add_header 对这一层就全部失效。下面三个 location 都要设
+    # 自己的 Cache-Control，所以写在 server 这一层的这三条在它们里面一条都不会发出去，
+    # 而 location / 恰好覆盖了全站所有 HTML 页面。
+    # 这一层保留是为了兜住将来新增的、没有自己 add_header 的 location。
+    add_header X-Content-Type-Options nosniff always;
+    add_header X-Frame-Options SAMEORIGIN always;
+    add_header Referrer-Policy strict-origin-when-cross-origin always;
+
+    gzip on;
+    gzip_types text/css application/javascript application/json image/svg+xml;
+    gzip_min_length 1024;
+
+    # ── 后端 ─────────────────────────────────────────────────────────────
+    location /api/ {
+        proxy_pass http://erase_api;
+        proxy_http_version 1.1;
+        # 置空 Connection 是 upstream keepalive 生效的前提：不清掉的话
+        # 客户端那边的 "Connection: close" 会被原样转给后端，连接池形同虚设。
+        proxy_set_header Connection "";
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # 上传几百 MB 的文件必须关掉请求缓冲：开着的话 nginx 会先把整个
+        # 请求体落到磁盘再转发，用户的进度条会在 100% 处卡住等上好一会儿。
+        proxy_request_buffering off;
+        proxy_read_timeout 600s;
+        proxy_send_timeout 600s;
+
+        add_header X-Content-Type-Options nosniff always;
+        add_header X-Frame-Options SAMEORIGIN always;
+        add_header Referrer-Policy strict-origin-when-cross-origin always;
+    }
+
+    # /s/ 是腾讯云 MPS 来取源视频的入口，必须公开可达且不能加任何认证。
+    # /r/ 是浏览器取成片。两者都走后端，由它校验 token。
+    location ~ ^/(s|r)/ {
+        proxy_pass http://erase_api;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+
+        # 大文件直接转发，别在 nginx 这里攒一份。
+        proxy_buffering off;
+        proxy_read_timeout 900s;
+
+        # 这些是一次性链接，缓存只会让已经删掉的文件继续被取到。
+        add_header Cache-Control "private, no-store" always;
+        add_header X-Content-Type-Options nosniff always;
+        add_header X-Frame-Options SAMEORIGIN always;
+        add_header Referrer-Policy strict-origin-when-cross-origin always;
+    }
+
+    # ── 静态站点 ─────────────────────────────────────────────────────────
+    # 带哈希的构建产物可以长缓存；HTML 不行，否则改了文案要等一年才生效。
+    location /assets/ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        add_header X-Content-Type-Options nosniff always;
+        add_header X-Frame-Options SAMEORIGIN always;
+        add_header Referrer-Policy strict-origin-when-cross-origin always;
+    }
+
+    location = /sitemap.xml {
+        expires 1h;
+    }
+
+    location = /robots.txt {
+        expires 1h;
+    }
+
+    # 预渲染出来的是 /how-it-works/index.html 这种目录结构，
+    # $uri/ 这一跳就是为它准备的。都没命中才回首页。
+    location / {
+        try_files $uri $uri/index.html $uri/ /index.html;
+        add_header Cache-Control "public, max-age=300";
+        add_header X-Content-Type-Options nosniff always;
+        add_header X-Frame-Options SAMEORIGIN always;
+        add_header Referrer-Policy strict-origin-when-cross-origin always;
+    }
+}

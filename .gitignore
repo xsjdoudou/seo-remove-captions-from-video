@@ -1,2 +1,14 @@
 go/key.txt
 __pycache__/
+node_modules/
+dist/
+.prerender/
+*.tsbuildinfo
+
+# 真实密钥，永远不要提交
+.env
+remove_captions_from_video/bash.sh
+
+# 用户上传的源视频与处理结果
+data/
+logs/

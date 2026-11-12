@@ -1,0 +1,1760 @@
+/*
+ * 全站样式。
+ *
+ * 不上 Tailwind 或 CSS-in-JS:这个站只有四个页面,一份手写 CSS 比一条构建
+ * 管线更好维护,而且首屏少一个要下载和解析的运行时。
+ * 颜色、间距、圆角全部走下面这组变量,改主题只动这一处。
+ */
+
+:root {
+  --bg: #0b0f1a;
+  --bg-alt: #111726;
+  --surface: #161d2e;
+  --surface-raised: #1d2639;
+  --border: #273149;
+  --text: #e8ecf5;
+  --text-muted: #9aa6bf;
+  --accent: #6c8cff;
+  --accent-strong: #8ba3ff;
+  --accent-ink: #0b0f1a;
+  --success: #4ade80;
+  --error: #f87171;
+  --radius: 14px;
+  --radius-lg: 22px;
+  /*
+   * 两侧的边距。工具区（.studio）是整幅铺开的——侧栏要顶到视口右缘——
+   * 所以边距不由一个全局容器统一给，各节自己带。
+   */
+  --gutter: clamp(16px, 2.2vw, 72px);
+  /*
+   * 正文各节的内容宽度上限。
+   *
+   * 不设上限的话，卡片网格在 1920 屏上会沿着整条屏幕排开，眼睛从第一张扫到
+   * 最后一张要横穿一整屏，读起来比排两行还累。
+   * 1480px 在当前字号下是一行三张卡片，两侧也留出了"这块内容到此为止"的空白。
+   *
+   * 注意上限只加在内容上，不加在 .section 本身：.section--alt 的底色和分隔线
+   * 还是要通栏的，一段颜色浮在屏幕中间会把页面切得支离破碎。
+   */
+  --content-max: 1480px;
+  /*
+   * 侧栏整列的宽度（含左边那条把手）。跟着视口缩放：一个固定值在 1440 屏上
+   * 刚好，但在很宽的屏幕上对着一块三千多像素的画布就成了一条细缝。
+   * 下限保证文件名还放得下，上限防止它在超宽屏上喧宾夺主。
+   */
+  --side-w: clamp(390px, 21vw, 490px);
+  /* 收起之后剩下的那条把手。够宽能竖排一行小字，又窄到不像一列内容。 */
+  --rail-w: 38px;
+  --studio-gap: 22px;
+  /*
+   * hero 的上留白。
+   */
+  --hero-top: 44px;
+  /*
+   * 侧栏顶边的位置：比 hero 再低一截。
+   *
+   * 不跟 hero 完全齐平——标题那行字块的顶边在视觉上比字本身高出一截（行高
+   * 留的空），严格齐平反而显得侧栏偏高。往下让这 32px，顶边落在标题的字上，
+   * 看着才是一条线。要再调就只动这个数。
+   */
+  --side-top: calc(var(--hero-top) + 32px);
+  /*
+   * 画布高度上限：保证画布连同下面的操作栏一起落在首屏内。
+   * 减去的是导航 + hero + 操作栏 + 底部呼吸占掉的高度——这一段几乎全是文字，
+   * 字号倍率一改它就跟着变，所以这个数是估的，调完倍率要在浏览器里对一眼。
+   */
+  --stage-max-h: calc(100vh - 560px);
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  /*
+   * 全站字号倍率。改这一个数，所有文字一起缩放。
+   *
+   * 全站的 font-size 都写成 rem,没有一个 px —— 所以这里一乘，标题、正文、
+   * 徽标、按钮全部按原来的比例同步放大，不会出现"标题大了正文没跟上"。
+   * 下面那些盛文字的容器宽度（--content-max、网格的 minmax、几处 max-width）
+   * 是按倍率 1.5 配的：字大了半圈，一行 640px 装的字就少了三分之一,不跟着
+   * 放宽的话文字会被挤成一条窄柱。倍率要是再调，这些宽度得跟着重配一遍。
+   */
+  --text-scale: 1.5;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  /* 用百分比而不是 px：浏览器里把默认字号调大过的人（多半是真需要）
+     不会被这里一个写死的 16px 抹掉，倍率是在他自己的基准上乘的。 */
+  font-size: calc(100% * var(--text-scale));
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 1.0625rem;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--accent-strong);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+h1,
+h2,
+h3 {
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  margin: 0 0 0.5em;
+}
+
+.shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+main {
+  flex: 1;
+}
+
+/* ── 按钮 ───────────────────────────────────────────────────────────── */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 22px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 1rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: transform 0.12s ease, background 0.15s ease, border-color 0.15s ease;
+  text-decoration: none;
+}
+
+.btn:hover {
+  text-decoration: none;
+  transform: translateY(-1px);
+}
+
+.btn:active {
+  transform: translateY(0);
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn--primary {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.btn--primary:hover {
+  background: var(--accent-strong);
+}
+
+.btn--ghost {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--text-muted);
+}
+
+.btn--ghost:hover {
+  color: var(--text);
+  border-color: var(--text-muted);
+}
+
+.btn--sm {
+  padding: 8px 16px;
+  font-size: 0.9375rem;
+}
+
+.btn--lg {
+  padding: 15px 32px;
+  font-size: 1.125rem;
+}
+
+.icon {
+  width: 1.15em;
+  height: 1.15em;
+  flex: none;
+  vertical-align: -0.18em;
+}
+
+.icon--success {
+  color: var(--success);
+}
+
+.icon--error {
+  color: var(--error);
+}
+
+/* ── 导航 ───────────────────────────────────────────────────────────── */
+
+.navbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: rgba(11, 15, 26, 0.85);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+}
+
+/*
+ * 品牌靠左，链接正中。
+ *
+ * 用 1fr auto 1fr 的网格而不是 flex 的 space-between：后者只会把链接推到
+ * 最右边；就算改成 center，flex 也是在"品牌之后剩下的那块"里居中，
+ * 品牌一宽链接就跟着右移，页面中轴上永远对不齐。
+ * 三列网格里中间那列的中心就是视口的中心——和下面 .studio 的画布是同一条
+ * 中轴，导航和主体因此竖着对成一条线。右边第三列是空的，它存在的唯一理由
+ * 就是抵消左边的品牌列。
+ */
+.navbar__inner {
+  margin: 0 auto;
+  padding: 14px var(--gutter);
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 16px;
+}
+
+.navbar__brand {
+  grid-column: 1;
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text);
+  font-weight: 700;
+  font-size: 1.0625rem;
+  letter-spacing: -0.02em;
+}
+
+.navbar__brand:hover {
+  text-decoration: none;
+}
+
+.navbar__logo {
+  width: 46px;
+  height: 46px;
+  color: var(--accent);
+}
+
+.navbar__links {
+  grid-column: 2;
+  justify-self: center;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 22px;
+  font-size: 0.9375rem;
+}
+
+.navbar__links a {
+  color: var(--text-muted);
+}
+
+.navbar__links a:hover,
+.navbar__links a.is-current {
+  color: var(--text);
+  text-decoration: none;
+}
+
+.navbar__links .btn--primary {
+  color: var(--accent-ink);
+}
+
+/*
+ * 窄到一行装不下就放弃居中。
+ *
+ * 居中要靠右边那条空列抵消品牌列，等于额外吃掉一个品牌那么宽的地方——
+ * 屏幕一窄，这笔开销先把链接挤出视口，给整页拖出一条横向滚动条。
+ * 这时候退回会换行的 flex：品牌和链接作为一组居中，装不下就折到第二行。
+ * 对齐是锦上添花，一行排得下才是底线。
+ */
+@media (max-width: 860px) {
+  .navbar__inner {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px 16px;
+  }
+
+  .navbar__brand,
+  .navbar__links {
+    grid-column: auto;
+    justify-self: auto;
+  }
+}
+
+/* ── Hero ───────────────────────────────────────────────────────────── */
+
+.hero {
+  /* 上传区现在占到 75vh,hero 要收一收,否则两者加起来把工具推到折叠线以下
+     ——来这个站的人第一个动作就是找那个拖放框。 */
+  padding: var(--hero-top) var(--gutter) 26px;
+  text-align: center;
+}
+
+.hero__inner {
+  /* 够宽屏上标题排成一行。折成两行会多吃 60px 高度，直接把画布的按钮
+     挤到折叠线以下。 */
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.hero__title {
+  font-size: clamp(2.1rem, 11vw, 3.4rem);
+  margin-bottom: 20px;
+}
+
+.hero__subtitle {
+  margin: 0 auto;
+  /* 一行就放得下。比 620px 宽一点,免得这句短句被折成两行。 */
+  max-width: 940px;
+  color: var(--text-muted);
+  font-size: 1.1rem;
+}
+
+.hero__badges {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px 22px;
+  margin: 26px 0 0;
+  padding: 0;
+  color: var(--text-muted);
+  font-size: 0.9375rem;
+}
+
+.hero__badges li::before {
+  content: '✓';
+  color: var(--success);
+  margin-right: 7px;
+  font-weight: 700;
+}
+
+/* ── Studio：画布 + 侧栏 ────────────────────────────────────────────── */
+
+/*
+ * 桌面端：hero 和画布居中在整页上，历史记录顶到右边缘、从头铺到尾。
+ *
+ * 三列而不是两列：左边那一列和右边的侧栏一样宽（里面装着模式选择）。
+ * 它存在的首要理由是把中间那列推回页面正中——两列布局里画布只是
+ * "除去侧栏之后剩下的那块"的中心，视觉上永远偏左一截，而画布是整个
+ * 页面的主角，偏心看着就是没对齐。
+ *
+ * 两行：上面是 hero，下面是工具。侧栏跨这两行，所以它从导航栏底下一直
+ * 铺到工具区底部，而不是只和画布一样高——那样它顶上会空出一大截，
+ * 看着像被压在了标题下面。
+ *
+ * 左右不留 gutter：侧栏要顶到视口右边缘（左边的空列替代了左 gutter），
+ * 画布自己有 max-width，不会贴边。
+ */
+.studio {
+  /* 底部这段留白是刻意的：画布不该贴着下一节内容，滚动时才有"这块结束了"的界限。 */
+  padding: 0 0 64px;
+  display: grid;
+  grid-template-columns: var(--side-w) minmax(0, 1fr) var(--side-w);
+  /* 上：hero，下：工具。auto auto 是默认行为，写出来是为了让下面的
+     grid-row 跨行读起来有据可依。 */
+  grid-template-rows: auto auto;
+  /* 行间距给 0：hero 自己带着下边距，再加一道 22px 会把画布推得更靠下。 */
+  gap: 0 var(--studio-gap);
+  /* 不用 start：侧栏要撑满这两行，才是一块顶天立地的"顶格"面板。 */
+  align-items: stretch;
+  /* 背景从 .hero 挪到这里：hero 现在只占中间一列，光晕留在它身上会被
+     切成窄窄一条；挂在容器上才铺得满整个视口宽度。 */
+  background:
+    radial-gradient(ellipse 70% 26% at 50% 0%, rgba(108, 140, 255, 0.18), transparent 70%),
+    var(--bg);
+}
+
+/*
+ * 列宽不随侧栏开合变。
+ *
+ * 收起时把右列收窄到只剩把手曾经看着更"省地方"，但代价是中间那列的宽度和
+ * 中轴都跟着动：hero 和画布会在用户点开历史的瞬间整体平移、重新换行，
+ * 而他点的那一下只是想看一眼自己传过什么。画布是页面的主角，它不该因为
+ * 旁边一块面板开了而挪窝。
+ *
+ * 所以两侧永远各留 --side-w：左右对称，中间那列就是视口的正中，
+ * 开合侧栏只改右列里显示什么，不改任何一个格子的尺寸。
+ * 收起时右列空出来的那块留白由 .side--collapsed 把把手推到视口右缘来填。
+ */
+
+.hero {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+/* 模式选择占左边那列。这列本来是块空白，存在的理由只是把画布顶到页面正中
+   ——既然必须留着它，就让它装点有用的东西。 */
+.modes {
+  grid-column: 1;
+  grid-row: 2;
+  /* 不像侧栏那样贴边：右边那块是可以收起来的面板，贴边是在说"它属于屏幕边缘"；
+     这块是一直在的设置，缩进来才像和画布并排的一组。 */
+  margin-left: var(--gutter);
+  min-width: 0;
+}
+
+.workspace {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+/* 跨两行：顶边贴着 hero 的顶，底边落在工具区的底。 */
+.side {
+  grid-column: 3;
+  grid-row: 1 / 3;
+}
+
+/*
+ * 窄到中间那列装不下一块像样的画布时就堆叠。
+ *
+ * 断点挺高，两个原因叠在一起：居中是对称的，右边每留一列给侧栏，左边就得
+ * 空掉同样多；而侧栏本身在当前字号下至少要 390px 才放得下文件名那一行。
+ * 两列加间距就去掉 820px，1320 以下中间剩不下一块能看的画布。
+ */
+@media (max-width: 1320px) {
+  .studio {
+    grid-template-columns: 1fr;
+    padding: 0 var(--gutter) 56px;
+  }
+
+  /* 堆叠之后按文档顺序一个接一个排，跨行那条规则必须解除，
+     否则侧栏会挤回第一行、和 hero 叠在一起。 */
+  .hero,
+  .modes,
+  .workspace,
+  .side {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
+  /* 堆叠时两侧的 gutter 由 .studio 给，自己那道缩进会变成双倍。 */
+  .modes {
+    margin-left: 0;
+  }
+
+  /* 整幅宽度下两个选项竖着排会变成两条横贯屏幕的长条，并排更像"二选一"。 */
+  .modes__list {
+    flex-direction: row;
+  }
+
+  .mode {
+    flex: 1;
+  }
+}
+
+.workspace {
+  min-width: 0;
+  scroll-margin-top: 100px;
+}
+
+.workspace__banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 860px;
+  margin: 0 auto 14px;
+  padding: 12px 18px;
+  border: 1px solid rgba(248, 113, 113, 0.35);
+  border-radius: var(--radius);
+  background: rgba(248, 113, 113, 0.08);
+  color: var(--error);
+  font-size: 0.9375rem;
+}
+
+/* ── 画布 ───────────────────────────────────────────────────────────── */
+
+/*
+ * 所有状态共用这一块 16:9 的画布。
+ *
+ * 形状跟着视频走：用户要处理的东西是横的，竖框只在"空着等人拖文件"那一刻
+ * 说得通。固定比例还顺带让上传→处理→结果三个状态切换时版面纹丝不动。
+ *
+ * min-height 是给超窄屏的下限，免得 16:9 把画布压得连按钮都放不下。
+ */
+.stage {
+  position: relative;
+  /*
+   * 一块尺寸克制的 16:9 画布，居中放在主区域里。
+   *
+   * 不铺满整栏：在宽屏上吃满会变成三千多像素、2.25:1 的巨幅letterbox，
+   * 既不像视频也不好用。参考站同样是把一个约 768px 的盒子摆在大片留白
+   * 中间——留白本身是构图的一部分，不是浪费。
+   *
+   * max-height 只作兜底：矮屏（或带着错误提示条）时接管，画布压扁一点，
+   * 保证下面的操作栏仍落在首屏内。
+   */
+  width: 100%;
+  max-width: 860px;
+  margin: 0 auto;
+  aspect-ratio: 16 / 9;
+  max-height: var(--stage-max-h);
+  min-height: 310px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  text-align: center;
+  overflow: hidden;
+}
+
+.stage--drop {
+  border: 2px dashed var(--border);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.stage--dragging {
+  border-color: var(--accent);
+  background: var(--surface-raised);
+}
+
+.stage--busy,
+.stage--result {
+  background: #000;
+  border: 1px solid var(--border);
+}
+
+.stage--error {
+  border: 1px solid rgba(248, 113, 113, 0.35);
+}
+
+.stage__icon {
+  width: 64px;
+  height: 64px;
+  color: var(--accent);
+  margin-bottom: 10px;
+}
+
+.stage--error .stage__icon {
+  color: var(--error);
+}
+
+.stage__title {
+  margin: 0;
+  font-size: clamp(1.25rem, 4.4vw, 1.6rem);
+  font-weight: 650;
+}
+
+.stage__sub {
+  margin: 0 0 12px;
+  max-width: 580px;
+  padding: 0 20px;
+  color: var(--text-muted);
+  font-size: 0.9375rem;
+}
+
+/* 视频铺满画布。contain 而不是 cover：裁掉画面边缘会把角落的字幕也裁掉，
+   而那正是用户要检查的地方。 */
+.stage__video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000;
+}
+
+/* 对照切换靠透明度，不换 src —— 换 src 会重新加载，闪一下黑屏，
+   那正好毁掉"对照"这件事。 */
+.stage__video.is-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* 处理中：进度压在画面底部，而不是盖住整块画布。 */
+.stage__overlay {
+  position: absolute;
+  inset: auto 0 0 0;
+  padding: 44px 24px 20px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.88), rgba(0, 0, 0, 0));
+  text-align: left;
+}
+
+.stage__status {
+  margin: 0 0 10px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.stage__hint {
+  margin: 10px 0 0;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+}
+
+.progress {
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  overflow: hidden;
+}
+
+.progress__bar {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-strong));
+  transition: width 0.5s ease;
+}
+
+/* ── 处理前 / 处理后 ────────────────────────────────────────────────── */
+
+/*
+ * 浮在画布左上角的分段开关。
+ *
+ * 这是整个产品里最该做好的一个控件："到底去干净没有"是用户唯一真正
+ * 关心的问题，而光看成片是答不了的——得和原片比。原片就在本地，不花流量。
+ */
+.compare {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  display: flex;
+  padding: 3px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(10, 14, 24, 0.72);
+  backdrop-filter: blur(8px);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.compare span {
+  padding: 5px 14px;
+  border-radius: 999px;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.compare span.is-active {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+/* ── 画布下方的操作栏 ───────────────────────────────────────────────── */
+
+/*
+ * 按钮和说明一律放在画布外面：压在画面上会挡住用户正要检查的字幕区域，
+ * 而且随状态在画布里跳来跳去。
+ */
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-height: 50px;
+  max-width: 860px;
+  margin: 14px auto 0;
+  flex-wrap: wrap;
+}
+
+.toolbar__meta {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  /* 文件名可能很长，不截断会把按钮挤走。 */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toolbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+}
+
+/* ── 模式选择 ───────────────────────────────────────────────────────── */
+
+.modes__title {
+  margin: 0 0 14px;
+  font-size: 0.9375rem;
+  font-weight: 650;
+  color: var(--text-muted);
+}
+
+.modes__list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mode {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.mode:hover:not(:disabled) {
+  border-color: var(--text-muted);
+}
+
+.mode:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 选中态同时改边框和底色：只描一道边在深色背景上太弱，
+   扫一眼看不出当前选的是哪个。 */
+.mode--active {
+  border-color: var(--accent);
+  background: var(--surface-raised);
+}
+
+.modes__icon {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  margin-top: 2px;
+  color: var(--text-muted);
+}
+
+.mode--active .modes__icon {
+  color: var(--accent);
+}
+
+.mode__body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.mode__title {
+  font-size: 0.9375rem;
+  font-weight: 650;
+}
+
+.mode__text {
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+
+.modes__note {
+  margin: 14px 0 0;
+  color: var(--text-muted);
+  font-size: 0.78125rem;
+  line-height: 1.5;
+}
+
+/* ── 在画面上画框 ───────────────────────────────────────────────────── */
+
+.stage--select {
+  background: #000;
+  border: 1px solid var(--border);
+}
+
+/*
+ * 画框用的那一层。
+ *
+ * 它铺的是**画面**那块矩形，不是整块画布：视频是 contain 进来的，
+ * 竖片两边会留黑边，在黑边上画出来的框换算成比例是错的。
+ * 位置由 JS 按视频真实宽高算好传进来。
+ */
+.boxes {
+  position: absolute;
+  cursor: crosshair;
+  touch-action: none; /* 手机上不让这一拖变成页面滚动 */
+}
+
+.box {
+  position: absolute;
+  border: 2px solid var(--accent);
+  background: rgba(108, 140, 255, 0.18);
+  border-radius: 3px;
+}
+
+/* 正在拖的那个：虚线，和已经定下来的框区分开。 */
+.box--draft {
+  border-style: dashed;
+  background: rgba(108, 140, 255, 0.1);
+}
+
+.box__remove {
+  position: absolute;
+  top: -12px;
+  right: -12px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-family: inherit;
+  font-size: 0.875rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.box__remove:hover {
+  background: var(--accent-strong);
+}
+
+/* 空着的时候压一行提示在画面上，告诉用户这里是可以拖的。 */
+.stage__hint--float {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 7px 16px;
+  border-radius: 999px;
+  background: rgba(10, 14, 24, 0.78);
+  backdrop-filter: blur(8px);
+  color: var(--text);
+  /* 提示不该挡住底边的字幕——那正是用户要画框的地方。 */
+  pointer-events: none;
+}
+
+/* ── 选帧的时间轴 ───────────────────────────────────────────────────── */
+
+.scrub {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  max-width: 860px;
+  margin: 12px auto 0;
+}
+
+.scrub__range {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.scrub__time {
+  flex: none;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 侧栏 ───────────────────────────────────────────────────────────── */
+
+
+/*
+ * 顶到视口右边缘的一块面板：右边没有边框、没有圆角，像是从屏幕边上长出来的。
+ * 画布是浮在页面中间的一块卡片，侧栏贴着边、从 hero 顶一直铺到工具区底
+ * ——两者形状不同，一眼就分得出哪个是主、哪个是旁边候着的。
+ */
+.side {
+  min-width: 0;
+  display: flex;
+  /* 给下面那张绝对定位的卡片当参照系。 */
+  position: relative;
+  /* 顶边下移到和 hero 标题齐平。这里只管把手——卡片是绝对定位的，
+     padding 对它无效，它自己的 top 也得给同一个值。 */
+  padding-top: var(--side-top);
+}
+
+/*
+ * 收起之后这一列仍然占着整个 --side-w（列宽是固定的，见 .studio），
+ * 把手要是留在列首，它就会浮在离屏幕右缘四百多像素的地方，
+ * 看着像一条凭空立在页面中间的竖条。推到列尾，它才还是"从屏幕边上伸出来的一只耳朵"。
+ */
+.side--collapsed {
+  justify-content: flex-end;
+}
+
+/*
+ * 收起/展开的把手：贴在面板左沿、竖着的一小条。
+ *
+ * 做成贴边的半块圆角而不是一个浮在上面的圆按钮——它是面板的一部分，
+ * 收起之后它就是面板本身，形状上得能连起来。
+ */
+.side__toggle {
+  flex: none;
+  /* 不撑满高度：一条通天的竖线看着像第二个边框，居中的一小块才像个把手。 */
+  align-self: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: var(--rail-w);
+  padding: 14px 0;
+  border: 1px solid var(--border);
+  border-right: 0;
+  border-radius: 10px 0 0 10px;
+  background: var(--surface-raised);
+  color: var(--text-muted);
+  font-family: inherit;
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.side__toggle:hover {
+  color: var(--text);
+  background: var(--bg-alt);
+}
+
+.side__toggleIcon {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  transition: transform 0.24s ease;
+}
+
+/* 展开时朝右（点它收起去），收起时朝左（点它拉出来）。 */
+.side--collapsed .side__toggleIcon {
+  transform: rotate(180deg);
+}
+
+.side__toggleLabel {
+  writing-mode: vertical-rl;
+  font-size: 0.78125rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+/*
+ * 卡片脱离文档流，铺满侧栏那块格子。
+ *
+ * 这是为了让"记录太多时在面板里滚动"真的发生：留在流里的话，网格的行高
+ * 会被它自己的内容撑开——十几条记录就能把整页拉长一倍，而面板里永远不会
+ * 出现滚动条。绝对定位之后它的高度只由格子决定（也就是 hero + 工具区那么高），
+ * 装不下的部分交给列表自己滚。
+ */
+.side__card {
+  position: absolute;
+  /* 上边和 hero 标题齐平，左边让开那条把手。 */
+  inset: var(--side-top) 0 0 var(--rail-w);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border: 1px solid var(--border);
+  border-right: 0;
+  border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+/* 收起走 display:none 而不是卸载组件——组件还活着,没跑完的任务才有人继续轮询。 */
+.side--collapsed .side__card {
+  display: none;
+}
+
+@media (max-width: 1320px) {
+  /* 堆叠之后它不再贴边，是一块普通卡片：边框圆角补回来，也没有收起这回事。 */
+  .side__toggle {
+    display: none;
+  }
+
+  /* 堆叠时它上面是画布不是 hero，没有要对齐的东西，那道留白去掉。 */
+  .side {
+    padding-top: 0;
+  }
+
+  .side--collapsed .side__card,
+  .side__card {
+    /* 回到文档流：这里没有一个高度已定的格子可以让它铺满，
+       绝对定位会让整块面板塌成零高。 */
+    position: static;
+    display: flex;
+    flex: 1;
+    border-right: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+  }
+
+  /* 流里的卡片高度由内容决定，列表得自己封顶，否则记录一多就把整页拉长。 */
+  .side__list {
+    max-height: 580px;
+  }
+}
+
+.side__head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.side__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 650;
+}
+
+.side__clear {
+  background: none;
+  border: 0;
+  padding: 4px 8px;
+  border-radius: 8px;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.side__clear:hover {
+  color: var(--text);
+  background: var(--bg-alt);
+}
+
+/* 面板现在是从 hero 顶铺到工具区底的一长条，空状态那一行摆在它正中间，
+   不然一行小字孤零零吊在顶上，下面一大片空白看着像没加载完。 */
+.side__empty {
+  flex: 1;
+  display: grid;
+  place-content: center;
+  margin: 0;
+  padding: 24px 18px;
+  color: var(--text-muted);
+  font-size: 0.84375rem;
+  text-align: center;
+}
+
+/*
+ * 列表吃掉面板里剩下的全部高度，装不下就在列表内部滚。
+ *
+ * 不封 max-height：面板本身已经有确定高度（卡片是绝对定位的，格子多高它多高），
+ * 再封一道只会让列表停在半空、下面空一截。min-height: 0 是必须的——
+ * flex 子项默认不肯小于内容高度，少了这一行 overflow 根本不会触发。
+ */
+.side__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  /* 细滚动条，配深色面板；省得默认那条灰白的挡在记录上面。 */
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.side__list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.side__list::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: var(--border);
+}
+
+.side__list::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+.side__item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 13px 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.side__item:last-child {
+  border-bottom: 0;
+}
+
+.side__item--muted {
+  opacity: 0.55;
+}
+
+.side__itemMain {
+  min-width: 0;
+}
+
+.side__name {
+  margin: 0 0 2px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.side__meta {
+  margin: 0;
+  font-size: 0.78125rem;
+  color: var(--text-muted);
+}
+
+.side__itemSide {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.side__itemActions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.side__remove {
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--text-muted);
+  font-size: 1.1875rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.side__remove:hover {
+  background: var(--bg-alt);
+  color: var(--text);
+}
+
+.side__note {
+  flex: none;
+  margin: 0;
+  /* 顶到列表底下，面板不满时留白留在列表里而不是夹在中间。 */
+  margin-top: auto;
+  padding: 14px 18px;
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 0.78125rem;
+}
+
+.badge {
+  display: inline-block;
+  padding: 3px 11px;
+  border-radius: 999px;
+  background: var(--bg-alt);
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.badge--ok {
+  background: rgba(74, 222, 128, 0.14);
+  color: var(--success);
+}
+
+.badge--error {
+  background: rgba(248, 113, 113, 0.14);
+  color: var(--error);
+}
+
+.badge--busy {
+  background: rgba(108, 140, 255, 0.16);
+  color: var(--accent-strong);
+}
+
+/* 原生 file input 必须留在 DOM 里（键盘和读屏软件靠它工作），
+   但它没法做成和站点一致的样式，所以藏起来由按钮转发点击。 */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ── 内容区块 ───────────────────────────────────────────────────────── */
+
+.section {
+  padding: 72px var(--gutter);
+  scroll-margin-top: 100px;
+}
+
+/*
+ * 底色通栏，内容收口。
+ *
+ * 分节的背景和那两道分隔线必须横贯整个视口——一段浮在屏幕中间的底色会把
+ * 页面切碎。所以宽度上限加在里面的内容上（--content-max），不加在这里。
+ */
+.section--alt {
+  background: var(--bg-alt);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.section__title {
+  font-size: clamp(1.6rem, 6.8vw, 2.2rem);
+  text-align: center;
+}
+
+.section__lede {
+  max-width: 920px;
+  margin: 0 auto 44px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.section__more {
+  margin: 36px 0 0;
+  text-align: center;
+}
+
+/* ── 处理前/后样例 ──────────────────────────────────────────────────── */
+
+/*
+ * 两个模式左右并排，每组自己是一对 9:16 的片子。
+ *
+ * 每组内部的宽度沿用原来那个数：760px 下每条约 360 宽、640 高，一组两条
+ * 同时落在视野里——这是"并排对照"的全部意义，再窄就看不清字幕区域了。
+ * 两组加中间的间距就是 1560px，整节的宽度上限因此定在这里。
+ *
+ * 组间距（40px）明显大于组内两条片子之间的（22px）：靠距离把"这两条是一对"
+ * 和"那边是另一个模式"分开，不然四条等距排开会被看成一排毫无关系的片子。
+ */
+.demo {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 40px;
+  max-width: 1560px;
+  margin: 32px auto 0;
+}
+
+/*
+ * 窄到一行塞不下四条竖片就上下排。
+ *
+ * 和 .studio 共用 1320px 这个断点不是巧合：两处要让位的理由是同一个——
+ * 竖片和侧栏都有一个"再窄就没法看"的下限，到了就该换排法而不是继续压缩。
+ */
+@media (max-width: 1320px) {
+  .demo {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 48px;
+    max-width: 760px;
+  }
+}
+
+.demo__case {
+  min-width: 0;
+}
+
+/* 模式名。用的词和左边那列的模式选择完全一致。 */
+.demo__caseTitle {
+  margin: 0;
+  color: var(--text);
+  font-size: 1.0625rem;
+  text-align: center;
+}
+
+/*
+ * 固定高度。
+ *
+ * 两段说明文字长短不一，不定高的话左右两组的视频顶边会错开一行，
+ * 而这一节从头到尾都在讲"对照"——自己先没对齐就不像话了。
+ */
+.demo__lede {
+  min-height: 3.1em;
+  max-width: 620px;
+  margin: 10px auto 0;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  line-height: 1.55;
+  text-align: center;
+}
+
+.demo__pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 22px;
+  margin-top: 18px;
+}
+
+.demo__item {
+  margin: 0;
+}
+
+.demo__frame {
+  position: relative;
+  aspect-ratio: 9 / 16;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #000;
+  overflow: hidden;
+}
+
+.demo__video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  /* cover 而不是 contain：画幅和框子都是 9:16，铺满不会裁到东西，
+     但万一哪天换了别的素材，宁可裁边也不要框里多出两条黑边。 */
+  object-fit: cover;
+}
+
+.demo__tag {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  padding: 4px 13px;
+  border-radius: 999px;
+  background: rgba(10, 14, 24, 0.72);
+  backdrop-filter: blur(8px);
+  font-size: 0.78125rem;
+  font-weight: 650;
+}
+
+/* "处理后"那张用主色标出来：扫一眼就知道哪边是结果。 */
+.demo__item--after .demo__tag {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.demo__caption {
+  margin: 12px 0 0;
+  color: var(--text-muted);
+  font-size: 0.84375rem;
+  text-align: center;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+  gap: 20px;
+  max-width: var(--content-max);
+  margin: 40px auto 0;
+}
+
+.card {
+  padding: 26px 24px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.card__icon {
+  width: 34px;
+  height: 34px;
+  color: var(--accent);
+  margin-bottom: 14px;
+}
+
+.card__title {
+  font-size: 1.08rem;
+  margin-bottom: 8px;
+}
+
+.card__text {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.9375rem;
+}
+
+.steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: 22px;
+  list-style: none;
+  padding: 0;
+  max-width: var(--content-max);
+  /* 左右 auto：上面那道 max-width 把它收窄了，不居中就会整块贴着左边，
+     而标题还是居中的——看起来就像排版歪了。 */
+  margin: 40px auto 0;
+}
+
+.step {
+  padding: 28px 24px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.step__number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 700;
+  margin-bottom: 14px;
+}
+
+.step__title {
+  font-size: 1.08rem;
+  margin-bottom: 8px;
+}
+
+.step p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.9375rem;
+}
+
+.usecases {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+  gap: 20px;
+  max-width: var(--content-max);
+  margin: 40px auto 0;
+}
+
+.usecase {
+  padding-left: 18px;
+  border-left: 3px solid var(--accent);
+}
+
+.usecase__title {
+  font-size: 1.05rem;
+  margin-bottom: 6px;
+}
+
+.usecase__text {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.9375rem;
+}
+
+/* ── 能力边界对照 ───────────────────────────────────────────────────── */
+
+.scope {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+  gap: 20px;
+  /* 这节只有两栏，拉到 1240 两块会变得又宽又扁，收窄一点读着更像一组对照。 */
+  max-width: 1000px;
+  margin: 40px auto 0;
+}
+
+.scope__col {
+  padding: 26px 24px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.scope__heading {
+  font-size: 1.05rem;
+  margin-bottom: 14px;
+}
+
+.scope__col ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--text-muted);
+  font-size: 0.9375rem;
+}
+
+.scope__col li {
+  position: relative;
+  padding-left: 26px;
+  margin-bottom: 9px;
+}
+
+.scope__col li::before {
+  position: absolute;
+  left: 0;
+  font-weight: 700;
+}
+
+.scope__col--yes li::before {
+  content: '✓';
+  color: var(--success);
+}
+
+.scope__col--no li::before {
+  content: '–';
+  color: var(--text-muted);
+}
+
+.scope__note {
+  margin: 18px 0 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+/* ── FAQ ────────────────────────────────────────────────────────────── */
+
+.faq {
+  max-width: 1000px;
+  margin: 40px auto 0;
+}
+
+.faq__item {
+  border-bottom: 1px solid var(--border);
+}
+
+.faq__question {
+  padding: 20px 0;
+  font-size: 1.03rem;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+  position: relative;
+  padding-right: 44px;
+}
+
+.faq__question::-webkit-details-marker {
+  display: none;
+}
+
+.faq__question::after {
+  content: '+';
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--accent);
+  font-size: 1.5rem;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.faq__item[open] .faq__question::after {
+  content: '−';
+}
+
+.faq__answer {
+  margin: 0 0 22px;
+  color: var(--text-muted);
+  font-size: 0.96875rem;
+}
+
+/* ── CTA ────────────────────────────────────────────────────────────── */
+
+.cta {
+  padding: 84px var(--gutter) 96px;
+  text-align: center;
+}
+
+.cta__title {
+  font-size: clamp(1.6rem, 6.8vw, 2.2rem);
+}
+
+.cta__text {
+  margin: 0 0 28px;
+  color: var(--text-muted);
+}
+
+/* ── 长文页面 ───────────────────────────────────────────────────────── */
+
+.article {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 64px 24px 88px;
+}
+
+.article__title {
+  font-size: clamp(1.9rem, 9vw, 2.7rem);
+}
+
+.article__meta {
+  margin: -8px 0 32px;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+.article__lede {
+  font-size: 1.12rem;
+  color: var(--text-muted);
+  margin-bottom: 40px;
+}
+
+.article h2 {
+  font-size: 1.5rem;
+  margin-top: 48px;
+}
+
+.article h3 {
+  font-size: 1.16rem;
+  margin-top: 32px;
+}
+
+.article p {
+  color: #c3ccdf;
+}
+
+.article__list {
+  padding-left: 22px;
+  color: #c3ccdf;
+}
+
+.article__list li {
+  margin-bottom: 12px;
+}
+
+.article__cta {
+  margin-top: 48px;
+}
+
+.article__cta .btn {
+  color: var(--accent-ink);
+}
+
+.article__cta .btn:hover {
+  text-decoration: none;
+}
+
+/* ── 页脚 ───────────────────────────────────────────────────────────── */
+
+.footer {
+  border-top: 1px solid var(--border);
+  background: var(--bg-alt);
+  padding: 44px var(--gutter) 32px;
+}
+
+.footer__inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.footer__brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.footer__logo {
+  width: 46px;
+  height: 46px;
+  color: var(--accent);
+}
+
+.footer__name {
+  margin: 0;
+  font-weight: 700;
+}
+
+.footer__tagline {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+.footer__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  font-size: 0.9375rem;
+}
+
+.footer__links a {
+  color: var(--text-muted);
+}
+
+.footer__legal {
+  margin: 28px auto 0;
+  padding-top: 22px;
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 0.84375rem;
+}
+
+/* ── 窄屏 ───────────────────────────────────────────────────────────── */
+
+@media (max-width: 640px) {
+  body {
+    font-size: 1rem;
+  }
+
+  .navbar__links {
+    gap: 14px;
+    font-size: 0.875rem;
+  }
+
+  .hero {
+    padding-top: 40px;
+  }
+
+  .section,
+  .cta {
+    padding-top: 56px;
+    padding-bottom: 56px;
+  }
+
+  /* 窄屏上 16:9 会把画布压得很矮,放宽到 4:3 才装得下提示和按钮。 */
+  .stage {
+    aspect-ratio: 4 / 3;
+    min-height: 350px;
+  }
+
+  .stage__icon {
+    width: 50px;
+    height: 50px;
+  }
+
+  /* 操作栏在窄屏上换成两行,按钮占满一行更好点。 */
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .toolbar__actions {
+    justify-content: stretch;
+  }
+
+  .toolbar__actions .btn {
+    flex: 1;
+  }
+}
+
+/* 系统设置里关掉了动效就别动。 */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

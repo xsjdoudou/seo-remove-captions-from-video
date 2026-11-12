@@ -1,0 +1,58 @@
+[Unit]
+# 后端：接收上传、调腾讯云 SmartErase、把成片拉回本地。
+#
+# 前置（这个 unit 假定它们已经存在，缺一个就起不来）：
+#   sudo useradd --system --no-create-home --shell /usr/sbin/nologin erase
+#   sudo mkdir -p /srv/removetextfromvideo /etc/removetextfromvideo
+#   # 把仓库和 npm run build 出来的 dist/ 放到 /srv/removetextfromvideo
+#   sudo mkdir -p /srv/removetextfromvideo/data
+#   sudo chown -R erase:erase /srv/removetextfromvideo/data
+#
+# 装服务：
+#   sudo cp .env /etc/removetextfromvideo/api.env
+#   sudo chown root:root /etc/removetextfromvideo/api.env
+#   sudo chmod 600 /etc/removetextfromvideo/api.env
+#   # 600 root-only 就够：EnvironmentFile 是 systemd(PID 1, root) 在降权之前
+#   # 读进去的，erase 这个用户自己从头到尾不需要能打开它。
+#   # ⚠ 然后编辑它：TRUST_PROXY=true、SOURCE_PUBLIC_BASE=https://removetextfromvideo.io
+#   sudo cp deploy/erase-api.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now erase-api
+#
+# 密钥放在 /etc/removetextfromvideo/api.env，不要放在仓库目录里——
+# 部署脚本一次 git clean 就能把它删掉，而且仓库目录的权限通常更宽。
+#
+# api.env 由 systemd 解析，不是 shell：值不会做变量展开，也不要加引号
+# （加了引号会被当成值的一部分）。.env.example 里的写法本来就符合这个格式。
+
+Description=removetextfromvideo API (upload + Tencent SmartErase)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=erase
+Group=erase
+WorkingDirectory=/srv/removetextfromvideo
+EnvironmentFile=/etc/removetextfromvideo/api.env
+ExecStart=/usr/bin/node scripts/erase-api.mjs
+Restart=always
+RestartSec=5
+
+# 任务状态在 jobs.json 里，重启能接上，所以这里可以放心让 systemd 重启。
+# 给 SIGTERM 留出落盘的时间。
+KillSignal=SIGTERM
+TimeoutStopSec=20
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/removetextfromvideo/data
+# 上传目录里全是用户给的文件，绝对不能从那里执行任何东西。
+# 注意这一条会同时作用于整个服务，node 本身不需要可执行的匿名内存映射。
+MemoryDenyWriteExecute=false
+PrivateDevices=true
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target
