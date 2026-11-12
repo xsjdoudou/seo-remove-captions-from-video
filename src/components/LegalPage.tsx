@@ -17,8 +17,8 @@ export function PrivacyPage() {
       <p className="article__meta">Last updated: {UPDATED}</p>
 
       <p className="article__lede">
-        The short version: your video is used for one thing — producing your result — and then it is deleted. We do not
-        require an account, and we do not want your personal data.
+        The short version: your video is used for one thing — producing your result — and then it is deleted. You can
+        use the tool without an account, and we do not want your personal data.
       </p>
 
       <h2>What we handle</h2>
@@ -33,25 +33,52 @@ export function PrivacyPage() {
           <strong>Basic request data.</strong> Your IP address and the time of the request, kept alongside the job so we
           can apply fair-use limits and investigate abuse.
         </li>
+        <li>
+          <strong>Your Google profile, only if you sign in.</strong> Name, email address and profile picture, as
+          supplied by Google. Nothing else, and nothing at all if you do not sign in.
+        </li>
       </ul>
-      <p>We do not ask for your name, email address or payment details, and there is no account to create.</p>
-
-      <h2>The &ldquo;recent videos&rdquo; list</h2>
       <p>
-        The list of your recent videos is stored in your own browser, using local storage on your device. It never
-        reaches our servers, and we cannot see it. That is also why it does not follow you to another browser or
-        another device.
+        Signing in is optional. Without it we never learn your name, email address or payment details — the tool works
+        exactly the same, and the only thing you give up is seeing your history on another device.
+      </p>
+
+      <h2>Signing in with Google</h2>
+      <p>
+        If you choose to sign in, your browser loads Google&rsquo;s sign-in script at that moment — not before — and
+        Google tells us your account identifier, name, email address and profile picture. We never see your Google
+        password, and we ask for no other access to your Google account.
       </p>
       <p>
-        It holds nothing but the job references and file names you already gave us. Clearing it with the{' '}
-        <em>Clear</em> button, or clearing your browser data, removes it completely.
+        We then set one cookie, so you stay signed in for up to 30 days. It holds a signed reference to your account and
+        nothing else: no tracking identifier, no analytics, no advertising. Signing out deletes it.
+      </p>
+      <p>
+        Want your account removed? Write to <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a> and we will delete
+        your profile and every job record attached to it.
+      </p>
+
+      <h2>The &ldquo;your videos&rdquo; list</h2>
+      <p>
+        <strong>If you are not signed in,</strong> the list lives in your own browser, using local storage on your
+        device. It never reaches our servers, and we cannot see it. That is also why it does not follow you to another
+        browser or another device. Clearing it with the <em>Clear</em> button, or clearing your browser data, removes it
+        completely.
+      </p>
+      <p>
+        <strong>If you are signed in,</strong> the list is stored on our server against your account, which is what lets
+        it follow you between devices. It holds job references, file names, sizes and outcomes — not the videos, which
+        are deleted on the schedule below. We keep these records for 30 days. Removing an entry deletes it from our
+        server immediately. When you sign in, any jobs you started anonymously on that browser are attached to your
+        account so they are not lost.
       </p>
 
       <h2>How long files are kept</h2>
       <p>
         Your original upload is deleted as soon as the processed video has been retrieved — typically within minutes of
         the job finishing. Both the original and the result are deleted automatically no more than 24 hours after
-        upload, whether or not you downloaded anything. Deletion is permanent; we keep no backup copies of user videos.
+        upload, whether or not you downloaded anything, and whether or not you have an account. Deletion is permanent;
+        we keep no backup copies of user videos.
       </p>
       <p>You can also delete a job yourself at any time by starting a new one or closing out of the result.</p>
 
@@ -68,14 +95,18 @@ export function PrivacyPage() {
         <li>We do not use your videos to train models.</li>
         <li>We do not watch or review your content except where we are legally required to.</li>
         <li>We do not run advertising or third-party tracking scripts on this site.</li>
-        <li>We do not set any cookie. The only thing stored on your device is the recent-videos list described above.</li>
+        <li>
+          We set no cookie at all unless you sign in, and the one we then set exists only to keep you signed in. We do
+          not use cookies to track you across sites.
+        </li>
       </ul>
 
       <h2>Your choices</h2>
       <p>
-        Because we store no account and no personal identifiers beyond a short-lived IP record, there is usually nothing
-        left to delete by the time you would ask. If you believe we hold something of yours and you want it removed,
-        write to <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a> and we will deal with it.
+        You can use the whole tool without signing in, in which case we hold no personal identifier beyond a short-lived
+        IP record and there is usually nothing left to delete by the time you would ask. If you do have an account, or
+        you believe we hold something of yours and you want it removed, write to{' '}
+        <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a> and we will deal with it.
       </p>
 
       <h2>Changes</h2>

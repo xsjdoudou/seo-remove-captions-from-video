@@ -281,6 +281,146 @@ main {
   color: var(--accent-ink);
 }
 
+/* ── 登录 ──────────────────────────────────────────────────────────────
+ *
+ * 导航栏里的一小块。登录在这个站上是可选的——不登也能用——所以它排在
+ * "Try it free" 右边，视觉权重比主 CTA 低。
+ */
+
+.auth {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+/*
+ * GIS 自己往里面塞一个 iframe，高度由 renderButton 的 size 参数决定。
+ * 给一个最小宽度占住位：按钮是异步出现的，不占位的话导航栏会在它到达时
+ * 抖一下，把旁边的链接挤走。
+ */
+.auth__google {
+  min-width: 110px;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+}
+
+.auth__error {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  margin: 0;
+  max-width: 240px;
+  font-size: 0.8125rem;
+  color: #ff9b9b;
+}
+
+.auth__trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px 4px 4px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.9375rem;
+  cursor: pointer;
+}
+
+.auth__trigger:hover {
+  color: var(--text);
+  border-color: var(--text-muted);
+}
+
+.auth__avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  object-fit: cover;
+}
+
+.auth__avatar--letter {
+  display: grid;
+  place-items: center;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+/* 长名字和邮箱不能把导航栏撑开。 */
+.auth__name {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.auth__menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 20;
+  min-width: 220px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-raised);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 45%);
+}
+
+.auth__identity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 10px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.auth__identityText {
+  min-width: 0;
+}
+
+.auth__identityName,
+.auth__identityEmail {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.auth__identityName {
+  font-size: 0.9375rem;
+  color: var(--text);
+}
+
+.auth__identityEmail {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+.auth__signout {
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.9375rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.auth__signout:hover {
+  background: var(--surface);
+  color: var(--text);
+}
+
 /*
  * 窄到一行装不下就放弃居中。
  *

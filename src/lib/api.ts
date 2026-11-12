@@ -5,7 +5,21 @@
  * 不用各自判断 response.ok 和 JSON 结构。
  */
 
-export type JobStatus = 'uploading' | 'queued' | 'submitting' | 'processing' | 'downloading' | 'completed' | 'failed'
+/**
+ * 任务状态。
+ *
+ * `expired` 不是流水线的某一步：它表示记录还在（登录用户的历史保留 30 天）
+ * 但视频文件已经到了 24 小时的清理期被删掉了。
+ */
+export type JobStatus =
+  | 'uploading'
+  | 'queued'
+  | 'submitting'
+  | 'processing'
+  | 'downloading'
+  | 'completed'
+  | 'failed'
+  | 'expired'
 
 /** 去字幕的两种方式：自动找，或者只擦用户圈出来的那几块。 */
 export type EraseMode = 'auto' | 'box'
@@ -42,6 +56,17 @@ export interface ServiceConfig {
   maxDurationSeconds: number
   accept: string
   retentionHours: number
+  /** 登录用户的任务记录保留多少天。文件仍然只留 retentionHours。 */
+  historyDays: number
+  /** 空字符串表示这台服务器没开 Google 登录，前端据此隐藏整个入口。 */
+  googleClientId: string
+}
+
+export interface User {
+  id: string
+  email: string
+  name: string
+  picture: string
 }
 
 /** 带上后端给的错误码，组件可以据此区分"文件太大"和"今天额度用完了"。 */
@@ -67,6 +92,61 @@ export async function fetchJob(id: string): Promise<Job> {
   const body = await readJson(response)
   if (!response.ok) throw toApiError(body, response.status)
   return (body as { job: Job }).job
+}
+
+// ── 登录 ────────────────────────────────────────────────────────────────
+//
+// 会话在一个 HttpOnly cookie 里，这里从头到尾不碰它——浏览器自己会带上。
+// 所有写操作都是 POST/DELETE，而那个 cookie 是 SameSite=Lax：跨站发起的
+// 请求根本带不上它，CSRF 的面因此不需要再加一层 token。
+
+/** 问服务端"我是谁"。未登录返回 null，不是错误。 */
+export async function fetchSession(): Promise<User | null> {
+  const response = await fetch('/api/auth/session', { headers: { accept: 'application/json' } })
+  if (!response.ok) throw new ApiError('Could not reach the service.', 'unreachable', response.status)
+  return ((await response.json()) as { user: User | null }).user
+}
+
+/** 把 Google 发的 ID token 换成我们自己的会话。 */
+export async function signInWithGoogle(credential: string): Promise<User> {
+  const response = await fetch('/api/auth/google', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', accept: 'application/json' },
+    body: JSON.stringify({ credential }),
+  })
+  const body = await readJson(response)
+  if (!response.ok) throw toApiError(body, response.status)
+  return (body as { user: User }).user
+}
+
+export async function signOut(): Promise<void> {
+  await fetch('/api/auth/session', { method: 'DELETE' }).catch(() => undefined)
+}
+
+/** 当前账号名下的任务，新的在前。未登录时返回空列表。 */
+export async function fetchJobs(): Promise<Job[]> {
+  const response = await fetch('/api/jobs', { headers: { accept: 'application/json' } })
+  const body = await readJson(response)
+  if (!response.ok) throw toApiError(body, response.status)
+  return (body as { jobs: Job[] }).jobs
+}
+
+/**
+ * 把登录前在本机做的任务挂到刚登录的账号下。
+ *
+ * 返回认领之后的完整列表，省掉一次 round trip。服务端只认领还没有主人的
+ * 任务，所以把本地历史里的 id 全发过去是安全的。
+ */
+export async function claimJobs(ids: string[]): Promise<Job[]> {
+  if (ids.length === 0) return fetchJobs()
+  const response = await fetch('/api/jobs/claim', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', accept: 'application/json' },
+    body: JSON.stringify({ ids }),
+  })
+  const body = await readJson(response)
+  if (!response.ok) throw toApiError(body, response.status)
+  return (body as { jobs: Job[] }).jobs
 }
 
 export async function deleteJob(id: string): Promise<void> {
@@ -156,7 +236,7 @@ export async function pollJob(
     // 那条记录又写回去。
     if (handlers.signal?.aborted) throw aborted()
     handlers.onUpdate?.(job)
-    if (job.status === 'completed' || job.status === 'failed') return job
+    if (job.status === 'completed' || job.status === 'failed' || job.status === 'expired') return job
 
     const elapsed = Date.now() - startedAt
     const interval = elapsed < 30_000 ? 1500 : elapsed < 180_000 ? 3000 : 6000

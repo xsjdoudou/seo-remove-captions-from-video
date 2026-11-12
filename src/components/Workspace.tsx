@@ -82,6 +82,8 @@ export default function Workspace({ mode, onBusyChange }: { mode: EraseMode; onB
             maxDurationSeconds: 900,
             accept: 'video/*',
             retentionHours: 24,
+            historyDays: 30,
+            googleClientId: '',
           })
         }
       })

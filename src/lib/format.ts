@@ -28,6 +28,8 @@ const LABELS: Record<JobStatus, string> = {
   downloading: 'Almost there — fetching your clean video…',
   completed: 'Done',
   failed: 'Failed',
+  // 画布上基本见不到这个状态——它属于历史里的旧条目，不属于刚跑完的任务。
+  expired: 'This video has been deleted',
 }
 
 export function statusLabel(status: JobStatus): string {
@@ -49,6 +51,9 @@ const SHORT_LABELS: Record<JobStatus, string> = {
   downloading: 'Finishing',
   completed: 'Ready',
   failed: 'Failed',
+  // 记录还在、文件已被清理。走到徽章这里的机会不多（HistoryRow 对这个状态
+  // 有自己的分支），但 Record 要求穷举，留个对的文案比留个 never 强。
+  expired: 'Expired',
 }
 
 export function shortStatusLabel(status: JobStatus): string {

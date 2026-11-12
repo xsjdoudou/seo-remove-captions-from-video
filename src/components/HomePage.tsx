@@ -114,7 +114,7 @@ export default function HomePage({ onNavigate }: { onNavigate: (to: string) => v
             Deleted within 24 hours. Never published, never used for training.
           </Card>
           <Card icon={<LayersIcon className="card__icon" />} title="Nothing to install">
-            Runs in the browser. No editor, no plugin, no account.
+            Runs in the browser. No editor, no plugin, no account needed.
           </Card>
         </div>
       </section>

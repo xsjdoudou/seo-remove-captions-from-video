@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { isRoute, type Route } from './config'
 import { applyMeta } from './seo'
+import { fetchServiceConfig } from './lib/api'
+import { initAuth, subscribeAuth } from './lib/auth'
+import { enterLocalMode, enterServerMode } from './lib/history'
 import Navbar from './components/Navbar'
 import Footer from './components/Footer'
 import HomePage from './components/HomePage'
@@ -26,6 +29,46 @@ export default function App({ initialRoute = '/' }: { initialRoute?: string }) {
     return () => window.removeEventListener('popstate', onPopState)
     // 只在挂载时跑一次：之后的变化由 navigate 和 popstate 负责。
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  /**
+   * 登录状态驱动历史记录从哪儿读。
+   *
+   * 放在 App 这一层而不是 HistoryList 里：侧栏可以被收起，而收起时组件
+   * 仍然挂载着——真正的原因是这个切换关系到全站的数据来源，不是某个
+   * 组件的内部状态。登录态一变，整个列表就要换一边。
+   */
+  useEffect(() => {
+    let cancelled = false
+    let signedIn = false
+
+    const unsubscribe = subscribeAuth((state) => {
+      if (cancelled || state.loading) return
+      const nowSignedIn = state.user !== null
+      if (nowSignedIn === signedIn) return
+      signedIn = nowSignedIn
+      if (nowSignedIn) {
+        // 认领失败也不该把界面卡在旧状态上——退回本地模式，用户至少
+        // 还能看到这台浏览器里的记录。
+        void enterServerMode().catch(() => enterLocalMode())
+      } else {
+        enterLocalMode()
+      }
+    })
+
+    void (async () => {
+      // client id 和服务限额来自同一个接口，顺带拿到。拿不到就当没开登录：
+      // 匿名流程完全不依赖它。
+      const clientId = await fetchServiceConfig()
+        .then((config) => config.googleClientId)
+        .catch(() => '')
+      if (!cancelled) await initAuth(clientId)
+    })()
+
+    return () => {
+      cancelled = true
+      unsubscribe()
+    }
   }, [])
 
   useEffect(() => {

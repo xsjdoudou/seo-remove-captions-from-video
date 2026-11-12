@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiError, fetchJob, pollJob } from '../lib/api'
 import {
   clearHistory,
@@ -9,6 +9,7 @@ import {
   upsertEntry,
   type HistoryEntry,
 } from '../lib/history'
+import { getAuthState, subscribeAuth } from '../lib/auth'
 import { formatBytes, formatDuration, shortStatusLabel } from '../lib/format'
 import { ChevronIcon, DownloadIcon, ClockIcon } from './icons'
 
@@ -17,21 +18,26 @@ const TERMINAL: HistoryEntry['status'][] = ['completed', 'failed', 'expired']
 /**
  * 最近任务列表。
  *
- * 放在工具正下方:它是工具的延伸,不是一个独立的功能页。没有登录体系,
- * 做成 /history 这样的路由反而会让人以为有账号体系在背后。
+ * 放在工具正下方：它是工具的延伸，不是一个独立的功能页。做成 /history
+ * 这样的路由会让这个"打开就能用"的工具显得像个需要先登录的后台。
  *
- * 顺带解决了一个真实的使用问题:处理一段片子要几分钟,很多人会先去干别的,
- * 甚至关掉标签页。回来之后这里还在,没跑完的会继续轮询到完成。
+ * 顺带解决了一个真实的使用问题：处理一段片子要几分钟，很多人会先去干别的，
+ * 甚至关掉标签页。回来之后这里还在，没跑完的会继续轮询到完成。
  *
- * 收起/展开的状态由父组件持有:收起要同时改 .studio 的列宽,否则画布
+ * 登录之后这份列表来自账号，换设备也在；没登录就只存在这台浏览器里。
+ * 两种情况下这个组件的代码是同一份——差异全被 lib/history 吸收掉了，
+ * 这里只负责把那句说明换掉，让用户知道自己的记录现在存在哪。
+ *
+ * 收起/展开的状态由父组件持有：收起要同时改 .studio 的列宽，否则画布
  * 会在剩下的空间里偏心。这里只负责那块把手长什么样。
  */
 export default function HistoryList({ open, onToggle }: { open: boolean; onToggle: () => void }) {
 
-  // 初始必须是空数组:预渲染时没有 localStorage,服务端和客户端首次渲染
-  // 必须一致,否则 hydrate 会报 mismatch 并把这块重建一遍。
+  // 初始必须是空数组：预渲染时没有 localStorage，服务端和客户端首次渲染
+  // 必须一致，否则 hydrate 会报 mismatch 并把这块重建一遍。
   const [entries, setEntries] = useState<HistoryEntry[]>([])
   const [ready, setReady] = useState(false)
+  const [auth, setAuth] = useState(getAuthState)
 
   useEffect(() => {
     setEntries(loadHistory())
@@ -39,35 +45,69 @@ export default function HistoryList({ open, onToggle }: { open: boolean; onToggl
     return subscribe(setEntries)
   }, [])
 
-  // 上一轮没跑完的任务:先问一次服务端,还在跑就继续轮询到结束。
+  useEffect(() => {
+    setAuth(getAuthState())
+    return subscribeAuth(setAuth)
+  }, [])
+
+  // 上一轮没跑完的任务：先问一次服务端，还在跑就继续轮询到结束。
+  //
+  // 两个 ref 各自挡住一种重复：
+  //   watched —— 记下已经接手的 id。没有它，effect 依赖 entries 就会自己
+  //              喂自己：轮询回调 upsertEntry 改了 entries → effect 重跑 →
+  //              又起一遍，变成一个打服务端的死循环。
+  //   abort   —— 整个组件共用一个，只在卸载时触发。放进 effect 的 cleanup
+  //              里的话，entries 一变就会掐掉所有正在跑的轮询，它们随即被
+  //              重新接手，和上面那条合起来仍然是循环。
+  //
+  // 而依赖 entries 是必需的：登录之后列表会被整个换成账号里的那份，
+  // 里面可能有在另一台设备上提交、此刻还在跑的任务，只跑一次就接不上它们。
+  const watched = useRef(new Set<string>())
+  const abort = useRef<AbortController | null>(null)
+  if (abort.current === null) abort.current = new AbortController()
+
+  useEffect(() => {
+    const controller = abort.current
+    return () => controller?.abort()
+  }, [])
+
   useEffect(() => {
     if (!ready) return
-    const controller = new AbortController()
-    const pending = loadHistory().filter((entry) => !TERMINAL.includes(entry.status))
 
-    for (const entry of pending) {
+    for (const entry of entries) {
+      if (TERMINAL.includes(entry.status)) continue
+      if (watched.current.has(entry.id)) continue
+      watched.current.add(entry.id)
+
       void (async () => {
         try {
           const job = await fetchJob(entry.id)
           upsertEntry(job)
-          if (job.status !== 'completed' && job.status !== 'failed') {
-            const finished = await pollJob(entry.id, { onUpdate: upsertEntry, signal: controller.signal })
+          if (!TERMINAL.includes(job.status)) {
+            const finished = await pollJob(entry.id, { onUpdate: upsertEntry, signal: abort.current?.signal })
             upsertEntry(finished)
           }
         } catch (err) {
-          // 404 说明服务端已经清理掉了,标成过期而不是静默删掉——
+          // 404 说明服务端已经清理掉了，标成过期而不是静默删掉——
           // 用户得知道那条记录为什么不见了。
           if (err instanceof ApiError && err.status === 404) markExpired(entry.id)
+        } finally {
+          // 跑完就从集合里拿掉：同一个 id 以后若再次出现在未完成状态
+          // （比如登出又登录，列表重建），还得能被重新接上。
+          watched.current.delete(entry.id)
         }
       })()
     }
-
-    return () => controller.abort()
-  }, [ready])
+  }, [ready, entries])
 
   const onClear = useCallback(() => {
     clearHistory()
   }, [])
+
+  const signedIn = auth.user !== null
+  const note = signedIn
+    ? 'Saved to your account — these follow you to any device. Files are deleted 24 hours after upload.'
+    : 'Kept in this browser only. Download what you want to keep.'
 
   return (
     <aside className={`side${open ? '' : ' side--collapsed'}`} aria-label="Your recent videos">
@@ -116,7 +156,7 @@ export default function HistoryList({ open, onToggle }: { open: boolean; onToggl
                 <HistoryRow key={entry.id} entry={entry} />
               ))}
             </ul>
-            <p className="side__note">Kept in this browser only. Download what you want to keep.</p>
+            <p className="side__note">{note}</p>
           </>
         )}
       </div>

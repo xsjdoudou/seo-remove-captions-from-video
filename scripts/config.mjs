@@ -5,6 +5,7 @@
 
 import fs from 'node:fs'
 import path from 'node:path'
+import crypto from 'node:crypto'
 import { REPO_ROOT, loadEnv } from './env.mjs'
 
 // 直接 `vite` 启动（没过 with-env.mjs）时也要能读到配置。loadEnv 不覆盖
@@ -31,6 +32,32 @@ function str(name, fallback = '') {
 /** 去掉末尾斜杠，方便后面统一用 `${base}/path` 拼接。 */
 function trimBase(value) {
   return value.replace(/\/+$/, '')
+}
+
+/**
+ * 会话 cookie 的签名密钥。
+ *
+ * 没配就在 data/ 下自己生成一个并留着：登录是可选功能，不该因为少了一个
+ * 环境变量就让整个服务起不来；而每次重启都换一个随机密钥等于把所有人踢下线，
+ * 所以必须落盘。文件权限 600——拿到它就等于能伪造任何人的会话。
+ */
+function resolveSessionSecret(dataDir) {
+  const configured = str('SESSION_SECRET')
+  if (configured) {
+    if (configured.length < 32) throw new Error('SESSION_SECRET must be at least 32 characters')
+    return configured
+  }
+  const file = path.join(dataDir, 'session-secret')
+  try {
+    const existing = fs.readFileSync(file, 'utf8').trim()
+    if (existing.length >= 32) return existing
+  } catch (err) {
+    if (err.code !== 'ENOENT') throw err
+  }
+  const generated = crypto.randomBytes(32).toString('hex')
+  fs.mkdirSync(dataDir, { recursive: true })
+  fs.writeFileSync(file, `${generated}\n`, { mode: 0o600 })
+  return generated
 }
 
 export function loadConfig() {
@@ -68,6 +95,7 @@ export function loadConfig() {
     sourceDir: path.join(dataDir, 'sources'),
     resultDir: path.join(dataDir, 'results'),
     jobsFile: path.join(dataDir, 'jobs.json'),
+    usersFile: path.join(dataDir, 'users.json'),
 
     publicBase: trimBase(str('PUBLIC_BASE')),
     sourcePublicBase,
@@ -75,6 +103,10 @@ export function loadConfig() {
     maxUploadBytes: int('MAX_UPLOAD_BYTES', 600 * 1024 * 1024, { min: 1024 }),
     maxDurationSeconds: int('MAX_DURATION_SECONDS', 900, { min: 0 }),
     retentionMs: int('RETENTION_MS', 24 * 60 * 60 * 1000, { min: 60_000 }),
+    // 登录用户的任务**记录**保留多久。视频文件仍然按 RETENTION_MS 删掉，
+    // 这里留下的只是文件名、时长、状态这些元数据，好让人隔几天回来还能看到
+    // 自己处理过什么。匿名任务不适用：它们没有归属，记录跟着文件一起清掉。
+    recordRetentionMs: int('RECORD_RETENTION_MS', 30 * 24 * 60 * 60 * 1000, { min: 60_000 }),
     rateLimitConcurrent: int('RATE_LIMIT_CONCURRENT', 2, { min: 1 }),
     rateLimitDaily: int('RATE_LIMIT_DAILY', 10, { min: 1 }),
     // 生产环境站在 nginx/caddy 后面时打开，否则所有请求的来源 IP 都会是
@@ -83,6 +115,20 @@ export function loadConfig() {
     trustProxy: str('TRUST_PROXY', 'false').toLowerCase() === 'true',
     pollIntervalMs: int('POLL_INTERVAL_MS', 5000, { min: 1000 }),
     jobTimeoutMs: int('JOB_TIMEOUT_MS', 60 * 60 * 1000, { min: 60_000 }),
+
+    auth: {
+      // 没配 client id 就是"登录功能没开"：前端据此不渲染登录按钮，
+      // 匿名流程一切照旧。这是可选功能，缺配置不该让服务起不来。
+      googleClientId: str('GOOGLE_CLIENT_ID'),
+      sessionSecret: resolveSessionSecret(dataDir),
+      // 会话 cookie 带不带 Secure。生产必须带；本地 http://127.0.0.1 上带了
+      // 会被浏览器直接丢掉，表现是"点了登录但始终没登上"。
+      // 默认跟着 PUBLIC_BASE/SOURCE_PUBLIC_BASE 是不是 https 走。
+      cookieSecure:
+        str('COOKIE_SECURE', '').toLowerCase() === 'true' ||
+        (str('COOKIE_SECURE') === '' &&
+          /^https:/.test(str('PUBLIC_BASE') || str('SOURCE_PUBLIC_BASE') || 'http://')),
+    },
 
     tencent: {
       ready: tencentReady,
@@ -104,6 +150,9 @@ export function loadConfig() {
   if (config.jobTimeoutMs <= config.pollIntervalMs) {
     throw new Error('JOB_TIMEOUT_MS must be larger than POLL_INTERVAL_MS')
   }
+  if (config.recordRetentionMs < config.retentionMs) {
+    throw new Error('RECORD_RETENTION_MS must be at least RETENTION_MS — records cannot expire before their files')
+  }
   if (config.tencent.ready && !fs.existsSync(config.tencent.script)) {
     throw new Error(`missing SmartErase client script: ${config.tencent.script}`)
   }
@@ -120,8 +169,10 @@ export function describeConfig(config) {
     `data dir            ${config.dataDir}`,
     `max upload          ${(config.maxUploadBytes / 1024 / 1024).toFixed(0)} MB`,
     `max duration        ${config.maxDurationSeconds || 'unlimited'} s`,
-    `retention           ${(config.retentionMs / 3600_000).toFixed(1)} h`,
-    `rate limit          ${config.rateLimitConcurrent} concurrent / ${config.rateLimitDaily} per day per IP`,
+    `retention           ${(config.retentionMs / 3600_000).toFixed(1)} h files / ${(config.recordRetentionMs / 86_400_000).toFixed(0)} d records (signed-in)`,
+    `rate limit          ${config.rateLimitConcurrent} concurrent / ${config.rateLimitDaily} per day per IP or account`,
+    `google sign-in      ${config.auth.googleClientId ? 'enabled' : 'disabled (GOOGLE_CLIENT_ID unset)'}`,
+    `session cookie      ${config.auth.cookieSecure ? 'Secure' : 'not Secure — http only, do not use in production'}`,
     `tencent credentials ${config.tencent.ready ? 'present' : 'MISSING — submissions will fail'}`,
     `cos output          ${config.tencent.bucket || '(unset)'} @ ${config.tencent.region || '(unset)'}`,
     `source public base  ${config.sourcePublicBase || '(unset — MPS cannot reach localhost, submissions will fail)'}`,

@@ -16,8 +16,20 @@ import { pipeline as streamPipeline } from 'node:stream/promises'
 import { createWriteStream } from 'node:fs'
 
 import { loadConfig, describeConfig } from './config.mjs'
-import { JobStore, ACTIVE_STATUSES } from './store.mjs'
+import { JobStore, UserStore, ACTIVE_STATUSES } from './store.mjs'
 import { Pipeline } from './pipeline.mjs'
+import {
+  AuthError,
+  SESSION_COOKIE,
+  SESSION_TTL_MS,
+  clearCookie,
+  parseCookies,
+  readSession,
+  serializeCookie,
+  signSession,
+  userIdForGoogle,
+  verifyGoogleIdToken,
+} from './auth.mjs'
 import { sanitizeFilename, videoExtension, contentTypeFor, probeDurationSeconds, ACCEPT_ATTRIBUTE } from './media.mjs'
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -29,6 +41,8 @@ export async function createHandler(config = loadConfig()) {
 
   const store = new JobStore(config.jobsFile)
   await store.load()
+  const users = new UserStore(config.usersFile)
+  await users.load()
   const pipeline = new Pipeline(config, store)
   pipeline.resume()
 
@@ -57,12 +71,26 @@ export async function createHandler(config = loadConfig()) {
   sweeper.unref?.()
   void sweep(config, store)
 
+  if (!config.auth.googleClientId) {
+    console.warn(
+      `[api] \x1b[33mGoogle sign-in is off\x1b[0m — GOOGLE_CLIENT_ID is unset.\n` +
+        `      The site still works anonymously; visitors just keep their history in localStorage\n` +
+        `      instead of their account.\n`,
+    )
+  } else if (!config.auth.cookieSecure) {
+    // 这一条在本地是正常的，在生产是个会把会话 cookie 暴露在明文里的事故。
+    console.warn('[api] session cookie is not marked Secure — fine on localhost, never on a public site')
+  }
+
   // 进程退出前把内存里的状态落盘，否则刚提交的任务重启后就找不回来了。
-  const onExit = () => store.flushSync()
+  const onExit = () => {
+    store.flushSync()
+    users.flushSync()
+  }
   process.once('exit', onExit)
   for (const signal of ['SIGINT', 'SIGTERM']) {
     process.once(signal, () => {
-      store.flushSync()
+      onExit()
       process.exit(0)
     })
   }
@@ -70,17 +98,33 @@ export async function createHandler(config = loadConfig()) {
   const handler = async (req, res, next) => {
     const url = new URL(req.url, 'http://localhost')
     const route = decodeURIComponent(url.pathname)
+    // 每个请求都先解一次会话。认不出来就是匿名访客——这是完全合法的状态，
+    // 站点的主流程本来就不要求登录。
+    const session = currentUser(req, config, users)
 
     try {
       if (route === '/api/health') return sendJson(res, 200, { ok: true })
       if (route === '/api/config') return sendJson(res, 200, publicConfig(config))
 
-      if (route === '/api/jobs' && req.method === 'POST') return await createJob(req, res, { config, store, pipeline, url })
+      if (route === '/api/auth/google' && req.method === 'POST') return await signIn(req, res, { config, users })
+      if (route === '/api/auth/session') {
+        if (req.method === 'GET') return sendJson(res, 200, { user: publicUser(session) })
+        if (req.method === 'DELETE') return signOut(res, config)
+        return sendJson(res, 405, { error: { code: 'method_not_allowed', message: 'Use GET or DELETE.' } })
+      }
+
+      if (route === '/api/jobs' && req.method === 'POST') {
+        return await createJob(req, res, { config, store, pipeline, url, session })
+      }
+      if (route === '/api/jobs' && req.method === 'GET') return listJobs(res, store, config, session)
+      if (route === '/api/jobs/claim' && req.method === 'POST') {
+        return await claimJobs(req, res, { config, store, session })
+      }
 
       const jobMatch = /^\/api\/jobs\/([0-9a-f]{24})$/.exec(route)
       if (jobMatch) {
-        if (req.method === 'GET') return readJob(res, store, jobMatch[1], config)
-        if (req.method === 'DELETE') return await removeJob(res, store, jobMatch[1])
+        if (req.method === 'GET') return readJob(res, store, jobMatch[1], config, session)
+        if (req.method === 'DELETE') return await removeJob(res, store, jobMatch[1], session)
         return sendJson(res, 405, { error: { code: 'method_not_allowed', message: 'Use GET or DELETE.' } })
       }
 
@@ -107,7 +151,113 @@ export async function createHandler(config = loadConfig()) {
     return undefined
   }
 
-  return { handler, config, store, pipeline }
+  return { handler, config, store, users, pipeline }
+}
+
+// ── 登录 ────────────────────────────────────────────────────────────────
+
+/**
+ * 从请求的 cookie 里认出当前用户。返回 null 表示匿名。
+ *
+ * 只读 cookie，不碰 Google：ID token 在登录那一刻用过就扔了，之后的凭证是
+ * 我们自己签的会话。
+ */
+export function currentUser(req, config, users) {
+  const raw = parseCookies(req.headers?.cookie)[SESSION_COOKIE]
+  if (!raw) return null
+  const session = readSession(raw, config.auth.sessionSecret)
+  if (!session) return null
+  // 账号可能已经被删掉了（用户自己注销，或清理过期账号）。签名有效不等于
+  // 这个人还存在，所以必须回表确认一次。
+  const user = users.touch(session.userId)
+  if (!user) return null
+  return user
+}
+
+/** 给浏览器看的用户资料。内部字段（createdAt 之外的时间戳）不外发。 */
+function publicUser(user) {
+  if (!user) return null
+  return { id: user.id, email: user.email ?? '', name: user.name ?? '', picture: user.picture ?? '' }
+}
+
+async function signIn(req, res, { config, users }) {
+  if (!config.auth.googleClientId) {
+    return sendJson(res, 503, {
+      error: { code: 'not_configured', message: 'Sign-in is not available on this server.' },
+    })
+  }
+
+  let body
+  try {
+    body = await readJsonBody(req)
+  } catch {
+    return sendJson(res, 400, { error: { code: 'bad_request', message: 'Could not read the request.' } })
+  }
+
+  let profile
+  try {
+    profile = await verifyGoogleIdToken(body?.credential, { clientId: config.auth.googleClientId })
+  } catch (err) {
+    if (err instanceof AuthError) {
+      // 真实原因留在服务端日志里：浏览器那边只需要知道"这次登录没成"，
+      // 具体是 aud 不对还是签名不对，说出去只会帮到正在试探的人。
+      console.warn(`[auth] sign-in rejected: ${err.message}`)
+      const status = err.code === 'jwks_unavailable' ? 503 : 401
+      return sendJson(res, status, {
+        error: {
+          code: err.code,
+          message:
+            err.code === 'jwks_unavailable'
+              ? 'Could not reach Google to verify your sign-in. Please try again.'
+              : 'That sign-in could not be verified. Please try again.',
+        },
+      })
+    }
+    throw err
+  }
+
+  const userId = userIdForGoogle(profile.sub)
+  const user = users.upsert(userId, { email: profile.email, name: profile.name, picture: profile.picture })
+  await users.flush()
+
+  res.setHeader(
+    'set-cookie',
+    serializeCookie(SESSION_COOKIE, signSession(userId, config.auth.sessionSecret), {
+      maxAgeMs: SESSION_TTL_MS,
+      secure: config.auth.cookieSecure,
+    }),
+  )
+  console.log(`[auth] ${userId} signed in`)
+  return sendJson(res, 200, { user: publicUser(user) })
+}
+
+/**
+ * 登出。
+ *
+ * 只删 cookie，不动任何任务记录——用户下次登录回来，历史应该还在。
+ * 会话是签名式的，服务端没有可以作废的那一份。
+ */
+function signOut(res, config) {
+  res.setHeader('set-cookie', clearCookie(SESSION_COOKIE, { secure: config.auth.cookieSecure }))
+  return sendJson(res, 200, { user: null })
+}
+
+/**
+ * 读 JSON 请求体。
+ *
+ * 上限很小：这里只收一个 ID token 或一组任务 id，不是上传通道。
+ * 没有上限的话，任何人都能用一个无尽的请求体把内存吃光。
+ */
+async function readJsonBody(req, limitBytes = 16 * 1024) {
+  const chunks = []
+  let size = 0
+  for await (const chunk of req) {
+    size += chunk.length
+    if (size > limitBytes) throw new Error('request body too large')
+    chunks.push(chunk)
+  }
+  if (size === 0) return null
+  return JSON.parse(Buffer.concat(chunks).toString('utf8'))
 }
 
 // ── 路由实现 ────────────────────────────────────────────────────────────
@@ -120,10 +270,14 @@ function publicConfig(config) {
     maxDurationSeconds: config.maxDurationSeconds,
     accept: ACCEPT_ATTRIBUTE,
     retentionHours: Math.round(config.retentionMs / 3600_000),
+    historyDays: Math.round(config.recordRetentionMs / 86_400_000),
+    // client id 本来就是公开信息（它会出现在前端发给 Google 的请求里）。
+    // 从这里下发而不是编译进 JS：换一个 Google 项目不用重新构建前端。
+    googleClientId: config.auth.googleClientId,
   }
 }
 
-async function createJob(req, res, { config, store, pipeline, url }) {
+async function createJob(req, res, { config, store, pipeline, url, session }) {
   if (!config.tencent.ready || !config.sourcePublicBase) {
     return sendJson(res, 503, {
       error: { code: 'not_configured', message: 'The service is not configured yet. Please try again later.' },
@@ -142,7 +296,7 @@ async function createJob(req, res, { config, store, pipeline, url }) {
   const mode = areas.length > 0 ? 'box' : 'auto'
 
   const ip = clientIp(req, config)
-  const limit = checkRateLimit({ store, pipeline, config, ip })
+  const limit = checkRateLimit({ store, pipeline, config, ip, userId: session?.id ?? null })
   if (limit) return sendJson(res, 429, { error: limit })
 
   // 前端把文件名 encodeURIComponent 过了：HTTP 头只能装 latin-1，
@@ -167,6 +321,9 @@ async function createJob(req, res, { config, store, pipeline, url }) {
     filename,
     extension,
     ip,
+    // 登录用户的任务挂在账号上，换台设备也能列出来；匿名任务的 userId 是
+    // null，它的历史只存在于提交它的那台浏览器里。
+    userId: session?.id ?? null,
     bytes: 0,
     mode,
     areas: areas.length > 0 ? areas : null,
@@ -233,15 +390,81 @@ async function createJob(req, res, { config, store, pipeline, url }) {
   return sendJson(res, 201, { job: serializeJob(store.get(job.id), config) })
 }
 
-function readJob(res, store, id, config) {
+/**
+ * 归属校验。
+ *
+ * 任务 id 是 96 位随机值，拿到它本身已经是一种凭证（跟那些一次性文件链接
+ * 同源的设计）。但一旦任务挂到了账号上，这个凭证就不再是唯一的依据——
+ * 别人就算猜到了 id，也不该看到我账号下的东西。匿名任务保持原样：
+ * 没有归属可查，有 id 就是有权。
+ */
+function mayAccess(job, session) {
+  if (!job.userId) return true
+  return session?.id === job.userId
+}
+
+function readJob(res, store, id, config, session) {
   const job = store.get(id)
-  if (!job) return sendJson(res, 404, { error: { code: 'not_found', message: 'This job no longer exists.' } })
+  // 无权访问和不存在回同一个 404：区分开来等于告诉探测者"这个 id 是真的"。
+  if (!job || !mayAccess(job, session)) {
+    return sendJson(res, 404, { error: { code: 'not_found', message: 'This job no longer exists.' } })
+  }
   return sendJson(res, 200, { job: serializeJob(job, config) })
 }
 
-async function removeJob(res, store, id) {
+/** 当前登录用户的任务，新的在前。匿名访客拿到空列表，不是 401。 */
+function listJobs(res, store, config, session) {
+  if (!session) return sendJson(res, 200, { jobs: [], total: 0, signedIn: false })
+  const { jobs, total } = store.listByUser(session.id)
+  return sendJson(res, 200, { jobs: jobs.map((job) => serializeJob(job, config)), total, signedIn: true })
+}
+
+/**
+ * 把匿名时提交的任务认领到刚登录的账号下。
+ *
+ * 没有这一步，用户的使用路径会很别扭：传完一个视频、觉得好用、然后登录，
+ * 结果刚才那个任务反而从历史里消失了。
+ *
+ * 凭据就是任务 id 本身——它是不可猜测的，而且这些 id 来自调用方自己的
+ * localStorage。只认领**还没有主人**的任务：已经挂在别人账号下的，
+ * 即使 id 被猜中也不会被夺走。
+ */
+async function claimJobs(req, res, { config, store, session }) {
+  if (!session) return sendJson(res, 401, { error: { code: 'not_signed_in', message: 'Sign in first.' } })
+
+  let body
+  try {
+    body = await readJsonBody(req)
+  } catch {
+    return sendJson(res, 400, { error: { code: 'bad_request', message: 'Could not read the request.' } })
+  }
+
+  const ids = Array.isArray(body?.ids) ? body.ids : []
+  // 一次最多认领一屏的量。前端的本地历史上限本来就只有十几条。
+  const claimed = []
+  for (const id of ids.slice(0, 50)) {
+    if (typeof id !== 'string' || !/^[0-9a-f]{24}$/.test(id)) continue
+    const job = store.get(id)
+    if (!job || job.userId) continue
+    store.update(id, { userId: session.id })
+    claimed.push(id)
+  }
+  if (claimed.length > 0) await store.flush()
+
+  const { jobs, total } = store.listByUser(session.id)
+  return sendJson(res, 200, {
+    claimed: claimed.length,
+    jobs: jobs.map((job) => serializeJob(job, config)),
+    total,
+    signedIn: true,
+  })
+}
+
+async function removeJob(res, store, id, session) {
   const job = store.get(id)
-  if (!job) return sendJson(res, 404, { error: { code: 'not_found', message: 'This job no longer exists.' } })
+  if (!job || !mayAccess(job, session)) {
+    return sendJson(res, 404, { error: { code: 'not_found', message: 'This job no longer exists.' } })
+  }
   for (const file of [job.sourcePath, job.resultPath]) {
     if (file) await fsp.rm(file, { force: true }).catch(() => {})
   }
@@ -319,15 +542,20 @@ async function serveJobFile(req, res, store, kind, token, url) {
 /**
  * 把内部任务对象转成给浏览器看的形状。
  *
- * 关键在于**白名单**而不是删字段：ip、sourcePath、error.detail 这些永远不该
- * 出现在响应里，而新加字段时白名单是默认安全的那一边。
+ * 关键在于**白名单**而不是删字段：ip、userId、sourcePath、error.detail 这些
+ * 永远不该出现在响应里，而新加字段时白名单是默认安全的那一边。
  */
 export function serializeJob(job, config) {
   if (!job) return null
   const base = config?.publicBase ?? ''
+  // 登录用户的记录比文件活得久：文件被清掉之后这条记录还在列表里，
+  // 状态要变成 expired，否则界面会给出一个必然 404 的下载按钮。
+  const purged = Boolean(job.filesPurgedAt)
+  const status = purged && job.status === 'completed' ? 'expired' : job.status
+  const downloadable = status === 'completed'
   return {
     id: job.id,
-    status: job.status,
+    status,
     filename: job.filename,
     mode: job.mode ?? 'auto',
     bytes: job.bytes ?? 0,
@@ -337,8 +565,8 @@ export function serializeJob(job, config) {
     submittedAt: job.submittedAt ?? null,
     completedAt: job.completedAt ?? null,
     expiresAt: job.createdAt + (config?.retentionMs ?? DAY_MS),
-    resultUrl: job.status === 'completed' ? `${base}/r/${job.token}.mp4` : null,
-    downloadUrl: job.status === 'completed' ? `${base}/r/${job.token}.mp4?download=1` : null,
+    resultUrl: downloadable ? `${base}/r/${job.token}.mp4` : null,
+    downloadUrl: downloadable ? `${base}/r/${job.token}.mp4?download=1` : null,
     resultBytes: job.resultBytes ?? null,
     // 只回 code 和给用户看的 message。detail 里可能带着腾讯云的原始报错，
     // 含桶名、账号信息，留在服务端日志里就够了。
@@ -384,15 +612,23 @@ export function parseAreas(raw) {
   })
 }
 
-function checkRateLimit({ store, pipeline, config, ip }) {
-  if (pipeline.activeCountForIp(ip) >= config.rateLimitConcurrent) {
+/**
+ * 限流。
+ *
+ * 登录用户按账号算，匿名访客按 IP 算。按账号更准：同一个办公室或同一个
+ * 运营商 NAT 后面的人共用一个出口 IP，按 IP 算等于让他们互相挤占额度。
+ * 额度本身两边一样——登录只是让它算得更准，不是更宽。
+ */
+function checkRateLimit({ store, pipeline, config, ip, userId }) {
+  const owner = userId ? { field: 'userId', value: userId } : { field: 'ip', value: ip }
+  if (pipeline.activeCountForOwner(owner) >= config.rateLimitConcurrent) {
     return {
       code: 'too_many_active',
       message: `You already have ${config.rateLimitConcurrent} video(s) processing. Please wait for them to finish.`,
     }
   }
   const since = Date.now() - DAY_MS
-  const today = store.list().filter((job) => job.ip === ip && job.createdAt >= since).length
+  const today = store.list().filter((job) => job[owner.field] === owner.value && job.createdAt >= since).length
   if (today >= config.rateLimitDaily) {
     return {
       code: 'daily_limit',
@@ -484,18 +720,52 @@ function sendJson(res, status, body) {
   return undefined
 }
 
-/** 定期清掉过期任务的文件和记录。没有这一步，磁盘迟早被塞满。 */
+/**
+ * 定期清理。没有这一步，磁盘迟早被塞满。
+ *
+ * 文件和记录分两个期限：
+ *   - 视频文件一律在 RETENTION_MS（默认 24 小时）后删掉，登录与否都一样。
+ *     存储成本和隐私承诺都压在这条上，它不因为有账号而放宽。
+ *   - 任务**记录**（文件名、时长、状态这些元数据）在登录用户名下保留
+ *     RECORD_RETENTION_MS（默认 30 天），这样隔几天回来还能看到自己处理过
+ *     什么。匿名任务没有归属，记录跟文件一起清掉——留着它既没人能看到，
+ *     又平白多存一份 IP 记录。
+ */
 async function sweep(config, store) {
-  const cutoff = Date.now() - config.retentionMs
-  let removed = 0
+  const now = Date.now()
+  const fileCutoff = now - config.retentionMs
+  const recordCutoff = now - config.recordRetentionMs
+  let filesRemoved = 0
+  let recordsRemoved = 0
+
   for (const job of store.list()) {
-    if (job.createdAt > cutoff) continue
-    if (ACTIVE_STATUSES.includes(job.status) && job.updatedAt > cutoff) continue
-    for (const file of [job.sourcePath, job.resultPath]) {
-      if (file) await fsp.rm(file, { force: true }).catch(() => {})
+    const stale = job.createdAt <= fileCutoff
+    // 还在跑的任务只要最近有动静就放过：一个跑了 25 小时的任务是异常，
+    // 但不该在它正要写结果的时候把源文件抽走。
+    const busy = ACTIVE_STATUSES.includes(job.status) && job.updatedAt > fileCutoff
+
+    if (stale && !busy && !job.filesPurgedAt) {
+      for (const file of [job.sourcePath, job.resultPath]) {
+        if (file) await fsp.rm(file, { force: true }).catch(() => {})
+      }
+      // 匿名任务到这里就结束了：连记录一起删。
+      if (!job.userId) {
+        store.delete(job.id)
+        recordsRemoved += 1
+        filesRemoved += 1
+        continue
+      }
+      // 登录用户的记录留下，但把文件路径抹掉并打上时间戳——serializeJob
+      // 据此把状态报成 expired，前端就不会再给出一个必然 404 的下载链接。
+      store.update(job.id, { sourcePath: null, resultPath: null, filesPurgedAt: now })
+      filesRemoved += 1
+      continue
     }
-    store.delete(job.id)
-    removed += 1
+
+    if (job.userId && job.createdAt <= recordCutoff) {
+      store.delete(job.id)
+      recordsRemoved += 1
+    }
   }
 
   // 记录和文件可能对不上（比如手工删过 jobs.json），顺手扫一遍孤儿文件。
@@ -503,19 +773,21 @@ async function sweep(config, store) {
     const entries = await fsp.readdir(dir).catch(() => [])
     for (const entry of entries) {
       const token = entry.replace(/\.[^.]+$/, '')
-      if (store.findByToken(token)) continue
+      const owner = store.findByToken(token)
+      // 记录还在但已经标记清过文件的，它的文件同样是孤儿。
+      if (owner && !owner.filesPurgedAt) continue
       const file = path.join(dir, entry)
       const stat = await fsp.stat(file).catch(() => null)
-      if (stat && stat.mtimeMs < cutoff) {
+      if (stat && stat.mtimeMs < fileCutoff) {
         await fsp.rm(file, { force: true }).catch(() => {})
-        removed += 1
+        filesRemoved += 1
       }
     }
   }
 
-  if (removed > 0) {
+  if (filesRemoved > 0 || recordsRemoved > 0) {
     await store.flush()
-    console.log(`[sweep] removed ${removed} expired item(s)`)
+    console.log(`[sweep] removed ${filesRemoved} file(s) and ${recordsRemoved} record(s)`)
   }
 }
 

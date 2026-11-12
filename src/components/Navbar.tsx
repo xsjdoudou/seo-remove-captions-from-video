@@ -1,5 +1,6 @@
 import { LogoIcon } from './icons'
 import { SITE_NAME } from '../config'
+import SignInControl from './SignInControl'
 
 /**
  * 导航栏。
@@ -26,6 +27,8 @@ export default function Navbar({ route, onNavigate }: { route: string; onNavigat
           <a className="btn btn--primary btn--sm" href="/#tool" onClick={() => onNavigate('/')}>
             Try it free
           </a>
+          {/* 登录排在 CTA 右边：主按钮仍然是"开始用"，登录只是给回头客的入口。 */}
+          <SignInControl />
         </nav>
       </div>
     </header>

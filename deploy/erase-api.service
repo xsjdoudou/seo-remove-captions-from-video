@@ -47,6 +47,9 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
+# data/ 里现在还有 users.json（账号资料）和 session-secret（会话签名密钥，
+# 后端在没配 SESSION_SECRET 时自己生成，权限 600）。这个目录必须可写，
+# 而且**不能**被部署脚本清掉——清掉 session-secret 等于把所有人登出。
 ReadWritePaths=/srv/removetextfromvideo/data
 # 上传目录里全是用户给的文件，绝对不能从那里执行任何东西。
 # 注意这一条会同时作用于整个服务，node 本身不需要可执行的匿名内存映射。

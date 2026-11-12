@@ -31,7 +31,7 @@ export const FAQ: { q: string; a: string }[] = [
   },
   {
     q: 'Do I need to install anything?',
-    a: 'No. Everything runs in your browser and on our servers. There is nothing to download, no account to create and no plugin to install.',
+    a: 'No. Everything runs in your browser and on our servers. There is nothing to download and no plugin to install. An account is optional — sign in with Google only if you want your history to follow you between devices.',
   },
   {
     q: 'What video formats are supported?',

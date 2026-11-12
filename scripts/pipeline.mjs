@@ -32,11 +32,16 @@ export class Pipeline {
     return this.#running.size
   }
 
-  /** 某个 IP 当前有几个任务在跑。限流用。 */
-  activeCountForIp(ip) {
+  /**
+   * 某个主体（登录账号，或匿名访客的 IP）当前有几个任务在跑。限流用。
+   *
+   * 传一个 { field, value } 而不是两个可选参数：调用方必须在"按账号"和
+   * "按 IP"之间二选一，不会出现两个都传、规则含糊的中间状态。
+   */
+  activeCountForOwner({ field, value }) {
     let n = 0
     for (const job of this.#store.list()) {
-      if (job.ip === ip && ACTIVE_STATUSES.includes(job.status)) n += 1
+      if (job[field] === value && ACTIVE_STATUSES.includes(job.status)) n += 1
     }
     return n
   }
