@@ -9,6 +9,7 @@ import { CONTACT_EMAIL, SITE_NAME } from '../config'
  */
 
 const UPDATED = 'November 2025'
+const TERMS_UPDATED = 'November 13, 2026'
 
 export function PrivacyPage() {
   return (
@@ -130,7 +131,7 @@ export function TermsPage() {
   return (
     <article className="article">
       <h1 className="article__title">Terms of Service</h1>
-      <p className="article__meta">Last updated: {UPDATED}</p>
+      <p className="article__meta">Last updated: {TERMS_UPDATED}</p>
 
       <p className="article__lede">
         By uploading a video to {SITE_NAME} you agree to these terms. They are deliberately short.
@@ -151,6 +152,50 @@ export function TermsPage() {
         <li>Automated or bulk use that degrades the service for others, or attempts to work around usage limits.</li>
       </ul>
       <p>We may refuse or remove any job, and block access, where we believe these terms are being broken.</p>
+
+      <h2>Billing and credits</h2>
+      <p>
+        Prices, credit allowances and the applicable billing period are shown on the{' '}
+        <a href="/pricing">Pricing page</a> and at checkout. One-time credit packages are charged once; their unused
+        credits do not expire. Monthly subscriptions renew automatically at the price shown at checkout until
+        cancelled. Subscription credits reset at the end of each billing period and do not roll over.
+      </p>
+
+      <h2>Refund policy</h2>
+      <p>
+        You may request a full refund for a one-time credit package within 14 days of purchase if none of that
+        package&rsquo;s credits have been used. If any credits from the package have been used, a refund is not
+        normally available, but contact us about duplicate charges, a billing error or a service problem and we will
+        review your request.
+      </p>
+      <p>
+        For a monthly subscription, you may request a full refund for a charge within 14 days of that charge if none
+        of the subscription credits for that billing period have been used. If credits for that period have been
+        used, a refund is not normally available; we will review billing errors and service problems individually.
+        Cancelling a subscription does not by itself refund the current billing period.
+      </p>
+      <p>
+        To request a refund, email <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a> with your account email,
+        order or receipt number, purchase date and reason for the request. Please do not send card details. We aim to
+        respond within five business days. Approved refunds are returned through the payment provider to the original
+        payment method; the time until the money appears depends on the provider and your bank. Refunded credits may
+        be removed, and account access may be temporarily restricted while a refund is reviewed.
+      </p>
+      <p>
+        If a processing job fails, its reserved credits are returned to your account; this is a credit adjustment,
+        not a refund to your payment method. Subscription credits are returned only while their original billing
+        period remains active. Nothing in this policy limits any refund or cancellation rights available under
+        applicable consumer law.
+      </p>
+
+      <h2>Cancel a monthly subscription</h2>
+      <p>
+        Sign in, open <a href="/pricing">Pricing</a>, and select &ldquo;Manage subscription&rdquo; to cancel through
+        the customer portal. You can also contact <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a> for help.
+        Cancel before the next renewal to avoid the next charge. Cancellation stops future renewals; the current
+        billing period and its remaining subscription credits continue until that period ends, after which unused
+        subscription credits expire. One-time credits are not affected by cancellation.
+      </p>
 
       <h2>The service is provided as it is</h2>
       <p>

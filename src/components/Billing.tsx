@@ -114,7 +114,7 @@ export default function Billing() {
           </article>
         ))}
       </div>
-      <p className="billing__note">Video duration is rounded up to the next whole second. Auto and Box select share the same credit balance.</p>
+      <p className="billing__note">Video duration is rounded up to the next whole second. Auto and Box select share the same credit balance. See our <a href="/terms">billing, refund and cancellation terms</a>.</p>
       {message && <p role="alert">{message}</p>}
     </section>
   )
