@@ -239,12 +239,12 @@ export default function Workspace({ mode, onBusyChange }: { mode: EraseMode; onB
    * 用户主动放弃的任务没有留下来的理由,留着只会占着他的并发额度。
    */
   const cancelJob = useCallback(() => {
-    if (job) {
+    if (job && !service?.billingEnabled) {
       void deleteJob(job.id)
       removeHistoryEntry(job.id)
     }
     reset()
-  }, [job, reset])
+  }, [job, reset, service?.billingEnabled])
 
   /**
    * 完成后点"再做一个":只重置界面,**不删**服务端任务。
@@ -625,7 +625,7 @@ export default function Workspace({ mode, onBusyChange }: { mode: EraseMode; onB
           )}
           {(phase === 'uploading' || phase === 'processing') && (
             <button type="button" className="btn btn--ghost btn--sm" onClick={cancelJob}>
-              Cancel
+              {phase === 'processing' && service?.billingEnabled ? 'Continue in background' : 'Cancel'}
             </button>
           )}
           {phase === 'done' && job && (

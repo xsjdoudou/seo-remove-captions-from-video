@@ -18,6 +18,8 @@ import { createWriteStream } from 'node:fs'
 import { loadConfig, describeConfig } from './config.mjs'
 import { JobStore, UserStore, ACTIVE_STATUSES } from './store.mjs'
 import { Pipeline } from './pipeline.mjs'
+import { CreditLedger } from './credits.mjs'
+import { applyTestWebhook, createTestCheckout, verifyTestWebhook } from './waffo.mjs'
 import {
   AuthError,
   SESSION_COOKIE,
@@ -46,8 +48,30 @@ export async function createHandler(config = loadConfig()) {
   await store.load()
   const users = new UserStore(config.usersFile)
   await users.load()
+  const ledger = config.billing?.enabled ? new CreditLedger(path.join(config.dataDir, 'credits.sqlite')) : null
   const authAttempts = new Map()
-  const pipeline = new Pipeline(config, store)
+  const settleJob = async (id) => {
+    const job = store.get(id)
+    if (!ledger || !job?.billable || !['completed', 'failed'].includes(job.status)) return
+    await store.flush()
+    ledger.settle(id, job.status === 'completed')
+  }
+  if (ledger) {
+    for (const reservation of ledger.pendingReservations()) {
+      const job = store.get(reservation.job_id)
+      if (job && ['completed', 'failed'].includes(job.status)) await settleJob(job.id)
+      else if (!job) console.error(`[billing] reservation ${reservation.job_id} has no job; manual reconciliation required`)
+    }
+    for (const job of store.list()) {
+      if (!job.billable || job.status !== 'queued') continue
+      const result = ledger.reserve(job.userId, job.id, job.creditCost)
+      if (result !== 'reserved') store.update(job.id, {
+        status: 'failed', error: { code: 'insufficient_credits', message: 'Not enough credits to process this video.' },
+      })
+    }
+    await store.flush()
+  }
+  const pipeline = new Pipeline(config, store, settleJob)
   pipeline.resume()
 
   // 配置不全时在终端里说清楚是缺哪一项。
@@ -108,6 +132,51 @@ export async function createHandler(config = loadConfig()) {
     try {
       if (route === '/api/health') return sendJson(res, 200, { ok: true })
       if (route === '/api/config') return sendJson(res, 200, publicConfig(config))
+      if (route === '/api/billing/account' && req.method === 'GET') {
+        if (!ledger) return sendJson(res, 503, { error: { code: 'not_configured', message: 'Billing is not available.' } })
+        if (!session) return sendJson(res, 401, { error: { code: 'not_signed_in', message: 'Sign in first.' } })
+        return sendJson(res, 200, { balance: ledger.ensureAccount(session.id) })
+      }
+      if (route === '/api/billing/checkout' && req.method === 'POST') {
+        if (!ledger) return sendJson(res, 503, { error: { code: 'not_configured', message: 'Billing is not available.' } })
+        if (!session) return sendJson(res, 401, { error: { code: 'not_signed_in', message: 'Sign in first.' } })
+        if (!/^application\/json(?:\s*;|$)/i.test(req.headers['content-type'] || '')) {
+          return sendJson(res, 415, { error: { code: 'bad_request', message: 'Expected JSON.' } })
+        }
+        const body = await readJsonBody(req)
+        if (body?.planId !== 'onetime') {
+          return sendJson(res, 503, { error: { code: 'not_available', message: 'This plan is not available yet.' } })
+        }
+        try {
+          const checkoutUrl = await createTestCheckout(config, ledger, session, body.planId)
+          return sendJson(res, 200, { checkoutUrl, testMode: true })
+        } catch (err) {
+          console.error(`[billing] test checkout unavailable: ${err.message}`)
+          return sendJson(res, 503, { error: { code: 'not_available', message: 'Checkout is temporarily unavailable.' } })
+        }
+      }
+      if (route === '/api/billing/waffo-webhook' && req.method === 'POST') {
+        if (!ledger) return sendJson(res, 503, { error: { code: 'not_configured', message: 'Billing is not available.' } })
+        let event
+        try {
+          const chunks = []
+          let size = 0
+          for await (const chunk of req) {
+            size += chunk.length
+            if (size > 65536) throw new Error('Webhook body too large')
+            chunks.push(chunk)
+          }
+          event = await verifyTestWebhook(config, Buffer.concat(chunks).toString('utf8'), req.headers['x-waffo-signature'])
+        } catch {
+          return sendJson(res, 401, { error: { code: 'invalid_signature', message: 'Invalid webhook.' } })
+        }
+        try {
+          return sendJson(res, 200, { received: true, ...applyTestWebhook(config, ledger, event) })
+        } catch (err) {
+          console.error(`[billing] test webhook rejected: ${err.message}`)
+          return sendJson(res, 422, { error: { code: 'invalid_event', message: 'Webhook could not be processed.' } })
+        }
+      }
 
       if (route === '/api/auth/google' && req.method === 'POST') return await signIn(req, res, { config, users })
       if ((route === '/api/auth/register' || route === '/api/auth/login') && req.method === 'POST') {
@@ -120,7 +189,7 @@ export async function createHandler(config = loadConfig()) {
       }
 
       if (route === '/api/jobs' && req.method === 'POST') {
-        return await createJob(req, res, { config, store, pipeline, url, session })
+        return await createJob(req, res, { config, store, pipeline, url, session, ledger })
       }
       if (route === '/api/jobs' && req.method === 'GET') return listJobs(res, store, config, session)
       if (route === '/api/jobs/claim' && req.method === 'POST') {
@@ -130,7 +199,7 @@ export async function createHandler(config = loadConfig()) {
       const jobMatch = /^\/api\/jobs\/([0-9a-f]{24})$/.exec(route)
       if (jobMatch) {
         if (req.method === 'GET') return readJob(res, store, jobMatch[1], config, session)
-        if (req.method === 'DELETE') return await removeJob(res, store, jobMatch[1], session)
+        if (req.method === 'DELETE') return await removeJob(res, store, jobMatch[1], session, ledger, settleJob)
         return sendJson(res, 405, { error: { code: 'method_not_allowed', message: 'Use GET or DELETE.' } })
       }
 
@@ -157,7 +226,7 @@ export async function createHandler(config = loadConfig()) {
     return undefined
   }
 
-  return { handler, config, store, users, pipeline }
+  return { handler, config, store, users, pipeline, ledger }
 }
 
 // ── 登录 ────────────────────────────────────────────────────────────────
@@ -328,10 +397,11 @@ function publicConfig(config) {
     // client id 本来就是公开信息（它会出现在前端发给 Google 的请求里）。
     // 从这里下发而不是编译进 JS：换一个 Google 项目不用重新构建前端。
     googleClientId: config.auth.googleClientId,
+    billingEnabled: Boolean(config.billing?.enabled),
   }
 }
 
-async function createJob(req, res, { config, store, pipeline, url, session }) {
+async function createJob(req, res, { config, store, pipeline, url, session, ledger }) {
   if (!config.tencent.ready || !config.sourcePublicBase) {
     return sendJson(res, 503, {
       error: { code: 'not_configured', message: 'The service is not configured yet. Please try again later.' },
@@ -348,6 +418,13 @@ async function createJob(req, res, { config, store, pipeline, url, session }) {
     return sendJson(res, 400, { error: { code: 'bad_area', message: err.message } })
   }
   const mode = areas.length > 0 ? 'box' : 'auto'
+  if (ledger && !session) {
+    return sendJson(res, 401, { error: { code: 'not_signed_in', message: 'Sign in to process a video.' } })
+  }
+  if (ledger && mode === 'box' && !['pro', 'business'].includes(ledger.ensureAccount(session.id).plan)) {
+    return sendJson(res, 403, { error: { code: 'plan_required', message: 'Manual area selection requires Pro or Business.' } })
+  }
+  if (ledger) ledger.ensureAccount(session.id)
 
   const ip = clientIp(req, config)
   const limit = checkRateLimit({ store, pipeline, config, ip, userId: session?.id ?? null })
@@ -426,6 +503,11 @@ async function createJob(req, res, { config, store, pipeline, url, session }) {
 
   // 时长校验放在写盘之后：ffprobe 要有完整文件才量得准。
   const duration = await probeDurationSeconds(target)
+  if (ledger && (!Number.isFinite(duration) || duration <= 0)) {
+    await fsp.rm(target, { force: true }).catch(() => {})
+    store.delete(job.id)
+    return sendJson(res, 400, { error: { code: 'invalid_duration', message: 'Could not determine video duration.' } })
+  }
   if (config.maxDurationSeconds && duration && duration > config.maxDurationSeconds) {
     await fsp.rm(target, { force: true }).catch(() => {})
     store.delete(job.id)
@@ -437,9 +519,19 @@ async function createJob(req, res, { config, store, pipeline, url, session }) {
     })
   }
 
-  store.update(job.id, { status: 'queued', bytes: received, sourcePath: target, durationSeconds: duration })
-  pipeline.start(job.id)
+  store.update(job.id, { status: 'queued', bytes: received, sourcePath: target, durationSeconds: duration,
+    billable: Boolean(ledger), creditCost: ledger ? Math.ceil(duration) : null })
   await store.flush()
+  if (ledger) {
+    ledger.ensureAccount(session.id)
+    if (ledger.reserve(session.id, job.id, Math.ceil(duration)) !== 'reserved') {
+      store.update(job.id, { status: 'failed', error: { code: 'insufficient_credits', message: 'Not enough credits to process this video.' } })
+      await store.flush()
+      await fsp.rm(target, { force: true }).catch(() => {})
+      return sendJson(res, 402, { error: { code: 'insufficient_credits', message: 'Not enough credits to process this video.' } })
+    }
+  }
+  pipeline.start(job.id)
 
   return sendJson(res, 201, { job: serializeJob(store.get(job.id), config) })
 }
@@ -514,10 +606,17 @@ async function claimJobs(req, res, { config, store, session }) {
   })
 }
 
-async function removeJob(res, store, id, session) {
+async function removeJob(res, store, id, session, ledger, settleJob) {
   const job = store.get(id)
   if (!job || !mayAccess(job, session)) {
     return sendJson(res, 404, { error: { code: 'not_found', message: 'This job no longer exists.' } })
+  }
+  if (ledger && job.billable && ACTIVE_STATUSES.includes(job.status)) {
+    return sendJson(res, 409, { error: { code: 'job_active', message: 'This video is still processing and cannot be deleted yet.' } })
+  }
+  if (ledger && job.billable && ['completed', 'failed'].includes(job.status)) {
+    const reservation = ledger.pendingReservations().find((item) => item.job_id === job.id)
+    if (reservation) await settleJob(job.id)
   }
   for (const file of [job.sourcePath, job.resultPath]) {
     if (file) await fsp.rm(file, { force: true }).catch(() => {})

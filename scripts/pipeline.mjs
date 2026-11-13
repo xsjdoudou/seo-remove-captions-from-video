@@ -22,10 +22,12 @@ export class Pipeline {
   #config
   #store
   #running = new Set()
+  #onFinished
 
-  constructor(config, store) {
+  constructor(config, store, onFinished = async () => {}) {
     this.#config = config
     this.#store = store
+    this.#onFinished = onFinished
   }
 
   get activeCount() {
@@ -56,8 +58,14 @@ export class Pipeline {
         console.error(`[pipeline] job ${jobId} crashed: ${err?.stack || err}`)
         this.#store.update(jobId, { status: 'failed', error: publicError(err) })
       })
-      .finally(() => {
-        this.#running.delete(jobId)
+      .finally(async () => {
+        try {
+          await this.#onFinished(jobId)
+        } catch (err) {
+          console.error(`[pipeline] could not settle job ${jobId}: ${err?.stack || err}`)
+        } finally {
+          this.#running.delete(jobId)
+        }
       })
   }
 

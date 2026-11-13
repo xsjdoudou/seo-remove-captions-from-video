@@ -96,6 +96,13 @@ export function loadConfig() {
     resultDir: path.join(dataDir, 'results'),
     jobsFile: path.join(dataDir, 'jobs.json'),
     usersFile: path.join(dataDir, 'users.json'),
+    billing: {
+      enabled: str('BILLING_ENABLED', 'false').toLowerCase() === 'true',
+      merchantId: str('WAFFO_MERCHANT_ID'),
+      storeId: str('WAFFO_STORE_ID'),
+      privateKeyFile: str('WAFFO_PRIVATE_KEY_FILE'),
+      webhookPublicKeyFile: str('WAFFO_WEBHOOK_PUBLIC_KEY_FILE'),
+    },
 
     publicBase: trimBase(str('PUBLIC_BASE')),
     sourcePublicBase,

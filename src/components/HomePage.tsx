@@ -7,6 +7,9 @@ import { NavLink } from './Navbar'
 import { FAQ, siteSchema, metaFor } from '../seo'
 import type { EraseMode } from '../lib/api'
 import { ClockIcon, GlobeIcon, LayersIcon, ShieldIcon, SparkIcon } from './icons'
+import Billing from './Billing'
+import { useEffect } from 'react'
+import { fetchServiceConfig } from '../lib/api'
 
 /**
  * 首页。
@@ -44,6 +47,10 @@ export default function HomePage({ onNavigate }: { onNavigate: (to: string) => v
   const [mode, setMode] = useState<EraseMode>('auto')
   /** 有任务在跑时不让切模式：切了也改不了已经提交出去的那个任务。 */
   const [busy, setBusy] = useState(false)
+  const [billingEnabled, setBillingEnabled] = useState(false)
+  useEffect(() => {
+    void fetchServiceConfig().then((config) => setBillingEnabled(Boolean(config.billingEnabled))).catch(() => {})
+  }, [])
 
   return (
     <>
@@ -63,7 +70,7 @@ export default function HomePage({ onNavigate }: { onNavigate: (to: string) => v
               The AI rebuilds the background behind the lettering — no blur box, no cropped frame.
             </p>
             <ul className="hero__badges">
-              <li>No signup</li>
+              <li>{billingEnabled ? '15 free credits' : 'No signup'}</li>
               <li>No watermark</li>
               <li>Deleted in 24 h</li>
             </ul>
@@ -74,6 +81,7 @@ export default function HomePage({ onNavigate }: { onNavigate: (to: string) => v
         <Workspace mode={mode} onBusyChange={setBusy} />
         <HistoryList open={historyOpen} onToggle={() => setHistoryOpen((value) => !value)} />
       </div>
+      {billingEnabled && <Billing />}
 
       {/*
         样例紧挨着工具放：从拖放框往下滚一眼就看到"去完长这样"。
@@ -114,7 +122,7 @@ export default function HomePage({ onNavigate }: { onNavigate: (to: string) => v
             Deleted within 24 hours. Never published, never used for training.
           </Card>
           <Card icon={<LayersIcon className="card__icon" />} title="Nothing to install">
-            Runs in the browser. No editor, no plugin, no account needed.
+            Runs in the browser. No editor or plugin needed.
           </Card>
         </div>
       </section>
