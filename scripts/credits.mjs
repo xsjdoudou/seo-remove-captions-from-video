@@ -71,6 +71,15 @@ export class CreditLedger {
       CREATE TABLE IF NOT EXISTS billing_holds (
         user_id TEXT PRIMARY KEY, reason TEXT NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS test_subscriptions (
+        checkout_id TEXT PRIMARY KEY REFERENCES checkout_orders(id),
+        provider_order_id TEXT NOT NULL UNIQUE,
+        user_id TEXT NOT NULL,
+        plan TEXT NOT NULL,
+        period_start INTEGER NOT NULL,
+        period_end INTEGER NOT NULL,
+        status TEXT NOT NULL
+      );
     `)
   }
 
@@ -81,12 +90,23 @@ export class CreditLedger {
   }
 
   balance(userId, now = Date.now()) {
-    const row = this.db.prepare('SELECT * FROM accounts WHERE user_id = ?').get(identifier(userId))
-    if (!row) return null
-    const active = row.period_end != null && row.period_start <= now && now < row.period_end
-    const subscription = active ? row.subscription : 0
-    return { permanent: row.permanent, subscription, total: row.permanent + subscription,
-      plan: active ? row.plan : null, periodId: row.period_id, periodEnd: row.period_end }
+    identifier(userId)
+    return this.db.transaction(() => {
+      let row = this.db.prepare('SELECT * FROM accounts WHERE user_id = ?').get(userId)
+      if (!row) return null
+      const due = this.db.prepare(`SELECT * FROM grants WHERE user_id = ? AND kind = 'subscription'
+        AND period_start <= ? ORDER BY period_start DESC LIMIT 1`).get(userId, now)
+      if (due && (row.period_start == null || due.period_start > row.period_start)) {
+        this.db.prepare(`UPDATE accounts SET subscription = ?, period_id = ?, period_start = ?,
+          period_end = ?, plan = ? WHERE user_id = ?`)
+          .run(due.credits, due.period_id, due.period_start, due.period_end, due.plan, userId)
+        row = this.db.prepare('SELECT * FROM accounts WHERE user_id = ?').get(userId)
+      }
+      const active = row.period_end != null && row.period_start <= now && now < row.period_end
+      const subscription = active ? row.subscription : 0
+      return { permanent: row.permanent, subscription, total: row.permanent + subscription,
+        plan: active ? row.plan : null, periodId: row.period_id, periodEnd: row.period_end }
+    })()
   }
 
   grantPermanent(userId, grantId, credits) {
@@ -120,14 +140,13 @@ export class CreditLedger {
         return false
       }
       this.ensureAccount(userId)
-      const current = this.db.prepare('SELECT * FROM accounts WHERE user_id = ?').get(userId)
-      if (current.period_start != null && periodStart <= current.period_start) {
+      const latest = this.db.prepare(`SELECT period_start, period_end FROM grants
+        WHERE user_id = ? AND kind = 'subscription' ORDER BY period_start DESC LIMIT 1`).get(userId)
+      if (latest && (periodStart <= latest.period_start || periodStart < latest.period_end)) {
         throw new Error('Subscription period is not newer')
       }
       this.db.prepare(`INSERT INTO grants (grant_id, user_id, kind, credits, period_id, plan, period_start, period_end)
         VALUES (?, ?, 'subscription', ?, ?, ?, ?, ?)`).run(grantId, userId, product.credits, periodId, plan, periodStart, periodEnd)
-      this.db.prepare(`UPDATE accounts SET subscription = ?, period_id = ?, period_start = ?,
-        period_end = ?, plan = ? WHERE user_id = ?`).run(product.credits, periodId, periodStart, periodEnd, plan, userId)
       return true
     })()
   }
@@ -165,7 +184,7 @@ export class CreditLedger {
         const balance = this.balance(reservation.user_id, now)
         const refundable = balance.plan && balance.periodId === reservation.period_id ? reservation.subscription : 0
         this.db.prepare('UPDATE accounts SET permanent = permanent + ?, subscription = subscription + ? WHERE user_id = ?')
-          .run(reservation.permanent + reservation.subscription - refundable, refundable, reservation.user_id)
+          .run(reservation.permanent, refundable, reservation.user_id)
       }
       const state = success ? 'consumed' : 'refunded'
       this.db.prepare('UPDATE reservations SET state = ? WHERE job_id = ?').run(state, jobId)
@@ -186,6 +205,39 @@ export class CreditLedger {
 
   getCheckout(id) {
     return this.db.prepare('SELECT * FROM checkout_orders WHERE id = ?').get(identifier(id))
+  }
+
+  applySubscriptionPeriod(checkoutId, providerOrderId, periodStart, periodEnd, status) {
+    identifier(providerOrderId)
+    if (!Number.isSafeInteger(periodStart) || !Number.isSafeInteger(periodEnd) || periodStart >= periodEnd) {
+      throw new Error('Invalid subscription period')
+    }
+    return this.db.transaction(() => {
+      const order = this.getCheckout(checkoutId)
+      if (!order || order.plan === 'onetime') throw new Error('Unknown subscription checkout')
+      const existing = this.db.prepare('SELECT * FROM test_subscriptions WHERE checkout_id = ?').get(checkoutId)
+      if (existing && existing.provider_order_id !== providerOrderId) throw new Error('Subscription order mismatch')
+      if (existing && periodStart < existing.period_start) return false
+      if (existing && periodStart === existing.period_start) {
+        if (periodEnd !== existing.period_end) throw new Error('Subscription period conflict')
+        return false
+      }
+      const other = this.db.prepare('SELECT * FROM test_subscriptions WHERE user_id = ? AND checkout_id != ? AND period_end > ?').get(order.user_id, checkoutId, periodStart)
+      if (other) throw new Error('Overlapping subscriptions require reconciliation')
+      const grantId = `subscription:${checkoutId}:${periodStart}`
+      this.grantSubscription(order.user_id, grantId, {
+        plan: order.plan, periodId: grantId, periodStart, periodEnd,
+      })
+      this.db.prepare(`INSERT INTO test_subscriptions VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(checkout_id) DO UPDATE SET period_start = excluded.period_start,
+        period_end = excluded.period_end, status = excluded.status`)
+        .run(checkoutId, providerOrderId, order.user_id, order.plan, periodStart, periodEnd, status)
+      return true
+    })()
+  }
+
+  getActiveSubscription(userId, now = Date.now()) {
+    return this.db.prepare('SELECT * FROM test_subscriptions WHERE user_id = ? AND period_end > ? ORDER BY period_end DESC LIMIT 1').get(identifier(userId), now)
   }
 
   recordOneTimePayment(orderId, paymentId) {

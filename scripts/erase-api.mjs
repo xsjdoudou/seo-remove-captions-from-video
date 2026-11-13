@@ -19,7 +19,7 @@ import { loadConfig, describeConfig } from './config.mjs'
 import { JobStore, UserStore, ACTIVE_STATUSES } from './store.mjs'
 import { Pipeline } from './pipeline.mjs'
 import { CreditLedger, creditCost } from './credits.mjs'
-import { applyTestWebhook, createTestCheckout, verifyTestWebhook } from './waffo.mjs'
+import { applyTestWebhook, createTestCheckout, createTestPortal, verifyTestWebhook } from './waffo.mjs'
 import {
   AuthError,
   SESSION_COOKIE,
@@ -144,7 +144,8 @@ export async function createHandler(config = loadConfig()) {
           return sendJson(res, 415, { error: { code: 'bad_request', message: 'Expected JSON.' } })
         }
         const body = await readJsonBody(req)
-        if (body?.planId !== 'onetime') {
+        if (!['onetime', 'starter', 'pro', 'business'].includes(body?.planId) ||
+            (body.planId !== 'onetime' && !config.billing?.subscriptionsEnabled)) {
           return sendJson(res, 503, { error: { code: 'not_available', message: 'This plan is not available yet.' } })
         }
         try {
@@ -153,6 +154,18 @@ export async function createHandler(config = loadConfig()) {
         } catch (err) {
           console.error(`[billing] test checkout unavailable: ${err.message}`)
           return sendJson(res, 503, { error: { code: 'not_available', message: 'Checkout is temporarily unavailable.' } })
+        }
+      }
+      if (route === '/api/billing/portal' && req.method === 'POST') {
+        if (!ledger || !config.billing?.subscriptionsEnabled) return sendJson(res, 503, { error: { code: 'not_configured', message: 'Subscription management is unavailable.' } })
+        if (!session) return sendJson(res, 401, { error: { code: 'not_signed_in', message: 'Sign in first.' } })
+        try {
+          const portalUrl = await createTestPortal(config, session)
+          res.setHeader('Cache-Control', 'no-store')
+          return sendJson(res, 200, { portalUrl })
+        } catch (err) {
+          console.error(`[billing] test portal unavailable: ${err.message}`)
+          return sendJson(res, 503, { error: { code: 'not_available', message: 'Subscription management is temporarily unavailable.' } })
         }
       }
       if (route === '/api/billing/waffo-webhook' && req.method === 'POST') {
@@ -398,6 +411,7 @@ function publicConfig(config) {
     // 从这里下发而不是编译进 JS：换一个 Google 项目不用重新构建前端。
     googleClientId: config.auth.googleClientId,
     billingEnabled: Boolean(config.billing?.enabled),
+    testSubscriptionsEnabled: Boolean(config.billing?.enabled && config.billing?.subscriptionsEnabled),
   }
 }
 

@@ -5,10 +5,10 @@ import { fetchServiceConfig } from '../lib/api'
 type Balance = { total: number; permanent: number; subscription: number; plan: string | null }
 
 const plans = [
-  { name: 'One-time', description: 'For the occasional video.', price: '2.90', credits: '300', auto: '5 min', box: null, monthly: false },
-  { name: 'Starter', description: 'For a few short videos each month.', price: '4.90', credits: '600', auto: '10 min', box: null, monthly: true },
-  { name: 'Pro', description: 'For regular projects and more control.', price: '14.90', credits: '3,600', auto: '60 min', box: '20 min', monthly: true },
-  { name: 'Business', description: 'For teams with a larger workload.', price: '39.90', credits: '12,000', auto: '200 min', box: '66 min 40 sec', monthly: true },
+  { id: 'onetime', name: 'One-time', description: 'For the occasional video.', price: '2.90', credits: '300', auto: '5 min', box: null, monthly: false },
+  { id: 'starter', name: 'Starter', description: 'For a few short videos each month.', price: '4.90', credits: '600', auto: '10 min', box: null, monthly: true },
+  { id: 'pro', name: 'Pro', description: 'For regular projects and more control.', price: '14.90', credits: '3,600', auto: '60 min', box: '20 min', monthly: true },
+  { id: 'business', name: 'Business', description: 'For teams with a larger workload.', price: '39.90', credits: '12,000', auto: '200 min', box: '66 min 40 sec', monthly: true },
 ]
 
 export default function Billing() {
@@ -17,12 +17,16 @@ export default function Billing() {
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
   const [billingEnabled, setBillingEnabled] = useState(false)
+  const [subscriptionsEnabled, setSubscriptionsEnabled] = useState(false)
 
   useEffect(() => subscribeAuth(setAuth), [])
   useEffect(() => {
     let active = true
     void fetchServiceConfig().then((config) => {
-      if (active) setBillingEnabled(Boolean(config.billingEnabled))
+      if (active) {
+        setBillingEnabled(Boolean(config.billingEnabled))
+        setSubscriptionsEnabled(Boolean(config.testSubscriptionsEnabled))
+      }
     }).catch(() => {})
     return () => { active = false }
   }, [])
@@ -37,19 +41,33 @@ export default function Billing() {
     return () => { active = false }
   }, [auth.user, billingEnabled])
 
-  async function checkout() {
+  async function checkout(planId: string) {
     setBusy(true)
     setMessage('')
     try {
       const response = await fetch('/api/billing/checkout', {
         method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ planId: 'onetime' }),
+        body: JSON.stringify({ planId }),
       })
       const result = await response.json() as { checkoutUrl?: string; error?: { message?: string } }
       if (!response.ok || !result.checkoutUrl) throw new Error(result.error?.message || 'Checkout is unavailable.')
       window.location.assign(result.checkoutUrl)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Checkout is unavailable.')
+      setBusy(false)
+    }
+  }
+
+  async function openPortal() {
+    setBusy(true)
+    setMessage('')
+    try {
+      const response = await fetch('/api/billing/portal', { method: 'POST' })
+      const result = await response.json() as { portalUrl?: string; error?: { message?: string } }
+      if (!response.ok || !result.portalUrl) throw new Error(result.error?.message || 'Subscription management is unavailable.')
+      window.location.assign(result.portalUrl)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Subscription management is unavailable.')
       setBusy(false)
     }
   }
@@ -63,6 +81,9 @@ export default function Billing() {
           {billingEnabled && <p>{auth.user ? (balance ? `${balance.total} credits available` : 'Loading balance...') : 'Sign in to receive 15 free credits.'}</p>}
         </div>
         {billingEnabled && <span className="billing__badge">Test mode</span>}
+        {subscriptionsEnabled && balance?.plan && (
+          <p><button className="btn btn--ghost btn--sm" type="button" disabled={busy} onClick={() => void openPortal()}>Manage subscription</button></p>
+        )}
       </div>
       <p className="billing__rate">Auto: 1 credit / second <span aria-hidden="true">·</span> Box select: 3 credits / second</p>
       <div className="billing__plans">
@@ -84,11 +105,9 @@ export default function Billing() {
               </ul>
             </div>
             <div className="billing__action">
-              {plan.monthly ? <button className="btn btn--ghost" disabled>Coming soon</button> : (
-                <button className="btn btn--primary" disabled={!billingEnabled || !auth.user || busy} onClick={() => void checkout()}>
-                  {!billingEnabled ? 'Coming soon' : !auth.user ? 'Sign in to continue' : busy ? 'Opening...' : 'Test checkout'}
+                <button className="btn btn--primary" disabled={!billingEnabled || (plan.monthly && !subscriptionsEnabled) || !auth.user || busy || (plan.monthly && !!balance?.plan)} onClick={() => void checkout(plan.id)}>
+                  {!billingEnabled || (plan.monthly && !subscriptionsEnabled) ? 'Coming soon' : !auth.user ? 'Sign in to continue' : plan.monthly && balance?.plan ? 'Subscription active' : busy ? 'Opening...' : 'Test checkout'}
                 </button>
-              )}
             </div>
           </article>
         ))}

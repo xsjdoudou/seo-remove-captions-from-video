@@ -98,8 +98,10 @@ export function loadConfig() {
     usersFile: path.join(dataDir, 'users.json'),
     billing: {
       enabled: str('BILLING_ENABLED', 'false').toLowerCase() === 'true',
+      subscriptionsEnabled: str('BILLING_TEST_SUBSCRIPTIONS_ENABLED', 'false').toLowerCase() === 'true',
       merchantId: str('WAFFO_MERCHANT_ID'),
       storeId: str('WAFFO_STORE_ID'),
+      privateKey: str('WAFFO_PRIVATE_KEY'),
       privateKeyFile: str('WAFFO_PRIVATE_KEY_FILE'),
       webhookPublicKeyFile: str('WAFFO_WEBHOOK_PUBLIC_KEY_FILE'),
     },
