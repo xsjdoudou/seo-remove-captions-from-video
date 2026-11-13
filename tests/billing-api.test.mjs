@@ -5,6 +5,7 @@ import os from 'node:os'
 import path from 'node:path'
 import fs from 'node:fs/promises'
 import crypto from 'node:crypto'
+import { spawnSync } from 'node:child_process'
 import { loadConfig } from '../scripts/config.mjs'
 import { createHandler } from '../scripts/erase-api.mjs'
 
@@ -48,6 +49,21 @@ test('billing requires login and grants each account credits only once', async (
   const manual = await fetch(base + '/api/jobs?area=0,0,0.5,0.5', { method: 'POST', headers: { cookie } })
   assert.equal(manual.status, 403)
   assert.equal((await manual.json()).error.code, 'plan_required')
+  const videoFile = path.join(dir, 'test.mp4')
+  const ffmpeg = spawnSync('ffmpeg', ['-loglevel', 'error', '-f', 'lavfi', '-i', 'color=size=16x16:rate=1',
+    '-t', '16', '-c:v', 'mpeg4', '-y', videoFile])
+  if (ffmpeg.error?.code !== 'ENOENT') {
+    assert.equal(ffmpeg.status, 0, ffmpeg.stderr?.toString())
+    const upload = await fetch(base + '/api/jobs', {
+      method: 'POST', headers: { cookie, 'content-type': 'video/mp4', 'x-filename': 'test.mp4' },
+      body: await fs.readFile(videoFile),
+    })
+    assert.equal(upload.status, 402)
+    const { error } = await upload.json()
+    assert.equal(error.code, 'insufficient_credits')
+    assert.equal(error.requiredCredits, 16)
+    assert.equal(error.availableCredits, 15)
+  }
   ledger.createCheckout('order_test', userId, 'onetime')
   const raw = JSON.stringify({ id: 'event1', eventId: 'payment1', timestamp: new Date().toISOString(),
     eventType: 'order.completed', mode: 'test', storeId: 'STO_test',

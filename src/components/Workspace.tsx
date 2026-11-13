@@ -45,6 +45,7 @@ export default function Workspace({ mode, onBusyChange }: { mode: EraseMode; onB
   const [uploadFraction, setUploadFraction] = useState(0)
   const [job, setJob] = useState<Job | null>(null)
   const [message, setMessage] = useState<string | null>(null)
+  const [creditNotice, setCreditNotice] = useState<{ required?: number; available?: number } | null>(null)
   const [dragging, setDragging] = useState(false)
   /** 本地源视频的 object URL。成片出来之后用它做"处理前"的对照。 */
   const [sourceUrl, setSourceUrl] = useState<string | null>(null)
@@ -115,6 +116,7 @@ export default function Workspace({ mode, onBusyChange }: { mode: EraseMode; onB
     setPhase('idle')
     setJob(null)
     setMessage(null)
+    setCreditNotice(null)
     setUploadFraction(0)
     setSourceUrl(null)
     setShowBefore(false)
@@ -137,6 +139,7 @@ export default function Workspace({ mode, onBusyChange }: { mode: EraseMode; onB
     async (file: File, boxes: Area[]) => {
       setPhase('uploading')
       setMessage(null)
+      setCreditNotice(null)
       setUploadFraction(0)
 
       const { promise, abort } = uploadVideo(file, { onProgress: setUploadFraction, areas: boxes })
@@ -150,6 +153,11 @@ export default function Workspace({ mode, onBusyChange }: { mode: EraseMode; onB
         window.dispatchEvent(new Event('credits-changed'))
         if (err instanceof ApiError && err.code === 'aborted') {
           reset()
+          return
+        }
+        if (err instanceof ApiError && err.code === 'insufficient_credits') {
+          reset()
+          setCreditNotice({ required: err.requiredCredits, available: err.availableCredits })
           return
         }
         setPhase('error')
@@ -212,6 +220,7 @@ export default function Workspace({ mode, onBusyChange }: { mode: EraseMode; onB
       const url = URL.createObjectURL(file)
       setSourceUrl(url)
       setMessage(null)
+      setCreditNotice(null)
       setAreas([])
       setDraft(null)
       setFrame(null)
@@ -643,6 +652,17 @@ export default function Workspace({ mode, onBusyChange }: { mode: EraseMode; onB
           )}
         </div>
       </div>
+      {creditNotice && (
+        <p className="workspace__credit-notice" role="alert">
+          {creditNotice.required !== undefined
+            ? <>This video requires {creditNotice.required.toLocaleString()} credits
+              {creditNotice.available !== undefined && <>; you have {creditNotice.available.toLocaleString()}</>}.
+              {creditNotice.available !== undefined && creditNotice.required > creditNotice.available &&
+                <> You need {(creditNotice.required - creditNotice.available).toLocaleString()} more.</>}</>
+            : <>You need more credits to process this video.</>}
+          {' '}<a href="/pricing">View pricing to get credits</a>
+        </p>
+      )}
     </section>
   )
 }

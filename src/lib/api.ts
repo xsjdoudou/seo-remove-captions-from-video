@@ -74,11 +74,15 @@ export interface User {
 export class ApiError extends Error {
   code: string
   status: number
-  constructor(message: string, code: string, status: number) {
+  requiredCredits?: number
+  availableCredits?: number
+  constructor(message: string, code: string, status: number, requiredCredits?: number, availableCredits?: number) {
     super(message)
     this.name = 'ApiError'
     this.code = code
     this.status = status
+    this.requiredCredits = requiredCredits
+    this.availableCredits = availableCredits
   }
 }
 
@@ -265,10 +269,13 @@ async function readJson(response: Response): Promise<unknown> {
 }
 
 function toApiError(body: unknown, status: number): ApiError {
-  const error = (body as { error?: { code?: string; message?: string } } | null)?.error
+  const error = (body as { error?: { code?: string; message?: string; requiredCredits?: unknown; availableCredits?: unknown } } | null)?.error
+  const credits = (value: unknown) => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : undefined
   return new ApiError(
     error?.message ?? 'Something went wrong. Please try again.',
     error?.code ?? 'unknown',
     status,
+    credits(error?.requiredCredits),
+    credits(error?.availableCredits),
   )
 }

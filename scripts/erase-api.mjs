@@ -524,11 +524,19 @@ async function createJob(req, res, { config, store, pipeline, url, session, ledg
   await store.flush()
   if (ledger) {
     ledger.ensureAccount(session.id)
-    if (ledger.reserve(session.id, job.id, creditCost(duration, mode)) !== 'reserved') {
-      store.update(job.id, { status: 'failed', error: { code: 'insufficient_credits', message: 'Not enough credits to process this video.' } })
+    const requiredCredits = creditCost(duration, mode)
+    const reservation = ledger.reserve(session.id, job.id, requiredCredits)
+    if (reservation !== 'reserved') {
+      const insufficient = reservation === 'insufficient'
+      const error = insufficient
+        ? { code: 'insufficient_credits', message: 'Not enough credits to process this video.' }
+        : { code: 'billing_unavailable', message: 'Your account cannot process videos right now. Please contact support.' }
+      store.update(job.id, { status: 'failed', error })
       await store.flush()
       await fsp.rm(target, { force: true }).catch(() => {})
-      return sendJson(res, 402, { error: { code: 'insufficient_credits', message: 'Not enough credits to process this video.' } })
+      return sendJson(res, insufficient ? 402 : 403, {
+        error: insufficient ? { ...error, requiredCredits, availableCredits: ledger.balance(session.id).total } : error,
+      })
     }
   }
   pipeline.start(job.id)

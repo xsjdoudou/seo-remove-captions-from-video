@@ -692,6 +692,18 @@ main {
   font-size: 0.9375rem;
 }
 
+.workspace__credit-notice {
+  margin: 12px 0 0;
+  color: var(--error);
+  font-size: .9rem;
+}
+
+.workspace__credit-notice a {
+  color: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+}
+
 /* ── 画布 ───────────────────────────────────────────────────────────── */
 
 /*
