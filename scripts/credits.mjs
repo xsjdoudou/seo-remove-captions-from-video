@@ -7,6 +7,13 @@ export const BILLING_PLANS = Object.freeze({
   business: Object.freeze({ productId: 'PROD_0cZxODveJbiE505HfjeIob', credits: 12000, price: '39.90' }),
 })
 
+export function creditCost(durationSeconds, mode) {
+  if (!Number.isFinite(durationSeconds) || durationSeconds <= 0 || !['auto', 'box'].includes(mode)) {
+    throw new Error('Invalid credit cost input')
+  }
+  return Math.ceil(durationSeconds) * (mode === 'box' ? 3 : 1)
+}
+
 function identifier(value) {
   if (typeof value !== 'string' || !value.trim() || value.length > 256) throw new Error('Invalid identifier')
   return value

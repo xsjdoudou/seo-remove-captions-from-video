@@ -1949,14 +1949,28 @@ main {
     transition-duration: 0.01ms !important;
   }
 }
-.billing { max-width: 1120px; margin: 48px auto; padding: 0 24px; }
-.billing__header { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
-.billing__header h1 { margin: 0; font-size: 32px; }
-.billing__header p { margin: 8px 0; }
+.billing { max-width: 1320px; margin: 0 auto; padding: 70px 24px 100px; }
+.billing__header { text-align: center; }
+.billing__header h1 { margin: 0; font-size: 40px; }
+.billing__header p { margin: 12px 0; color: var(--text-muted); }
 .billing__badge { color: #7a4d00; background: #fff1cb; padding: 4px 8px; border-radius: 4px; font-size: 12px; }
-.billing__plans { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-top: 20px; }
-.billing__plans > div { display: flex; flex-direction: column; gap: 10px; padding: 22px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); }
-.billing__plans span { font-size: 20px; font-weight: 600; }
-.billing__plans small { color: var(--text-muted); }
+.billing__rate { margin: 34px 0 0; color: var(--text-muted); font-size: .9rem; text-align: center; }
+.billing__rate span { padding: 0 8px; color: var(--accent); }
+.billing__plans { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-top: 32px; }
+.billing__plan { display: flex; flex-direction: column; min-width: 0; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+.billing__plan-heading { padding: 24px; border-bottom: 1px solid var(--border); }
+.billing__plan-heading h2 { margin: 0; font-size: 1.15rem; letter-spacing: 0; }
+.billing__plan-heading p { min-height: 48px; margin: 8px 0 0; color: var(--text-muted); font-size: .9rem; line-height: 1.5; }
+.billing__price { margin-top: 20px; color: var(--accent-strong); font-size: 2rem; font-weight: 700; line-height: 1.2; }
+.billing__price small { color: var(--text-muted); font-size: .875rem; font-weight: 400; }
+.billing__plan-heading .billing__terms { min-height: 60px; margin-top: 12px; font-size: .8rem; }
+.billing__includes { flex: 1; padding: 22px 24px; }
+.billing__includes h3 { margin: 0 0 16px; font-size: .95rem; letter-spacing: 0; }
+.billing__includes ul { display: grid; gap: 14px; margin: 0; padding: 0; list-style: none; color: var(--text-muted); font-size: .9rem; line-height: 1.45; }
+.billing__includes li { position: relative; padding-left: 22px; }
+.billing__includes li::before { position: absolute; left: 0; content: '✓'; color: var(--success); }
+.billing__action { padding: 16px 24px 24px; }
+.billing__action .btn { width: 100%; }
+.billing__note { margin: 22px 0 0; color: var(--text-muted); font-size: .85rem; text-align: center; }
 @media (max-width: 760px) { .billing__plans { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 400px) { .billing__plans { grid-template-columns: 1fr; } }

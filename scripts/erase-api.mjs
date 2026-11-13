@@ -18,7 +18,7 @@ import { createWriteStream } from 'node:fs'
 import { loadConfig, describeConfig } from './config.mjs'
 import { JobStore, UserStore, ACTIVE_STATUSES } from './store.mjs'
 import { Pipeline } from './pipeline.mjs'
-import { CreditLedger } from './credits.mjs'
+import { CreditLedger, creditCost } from './credits.mjs'
 import { applyTestWebhook, createTestCheckout, verifyTestWebhook } from './waffo.mjs'
 import {
   AuthError,
@@ -520,11 +520,11 @@ async function createJob(req, res, { config, store, pipeline, url, session, ledg
   }
 
   store.update(job.id, { status: 'queued', bytes: received, sourcePath: target, durationSeconds: duration,
-    billable: Boolean(ledger), creditCost: ledger ? Math.ceil(duration) : null })
+    billable: Boolean(ledger), creditCost: ledger ? creditCost(duration, mode) : null })
   await store.flush()
   if (ledger) {
     ledger.ensureAccount(session.id)
-    if (ledger.reserve(session.id, job.id, Math.ceil(duration)) !== 'reserved') {
+    if (ledger.reserve(session.id, job.id, creditCost(duration, mode)) !== 'reserved') {
       store.update(job.id, { status: 'failed', error: { code: 'insufficient_credits', message: 'Not enough credits to process this video.' } })
       await store.flush()
       await fsp.rm(target, { force: true }).catch(() => {})

@@ -3,7 +3,14 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { CreditLedger } from '../scripts/credits.mjs'
+import { CreditLedger, creditCost } from '../scripts/credits.mjs'
+
+test('credit costs round video duration up and charge three times for box mode', () => {
+  assert.equal(creditCost(100.1, 'auto'), 101)
+  assert.equal(creditCost(100.1, 'box'), 303)
+  assert.throws(() => creditCost(0, 'box'))
+  assert.throws(() => creditCost(1, 'unknown'))
+})
 
 test('welcome grant, reservations and refunds are durable and idempotent', (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'credits-'))
