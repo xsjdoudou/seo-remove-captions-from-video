@@ -11,7 +11,7 @@ export const SITE_TAGLINE = 'Remove hardcoded subtitles from video'
 export const CONTACT_EMAIL = 'support@removetextfromvideo.io'
 
 /** 站点的全部可索引路由。sitemap 和预渲染都从这里取。 */
-export const ROUTES = ['/', '/how-it-works', '/privacy', '/terms'] as const
+export const ROUTES = ['/', '/how-it-works', '/pricing', '/privacy', '/terms'] as const
 
 export type Route = (typeof ROUTES)[number]
 

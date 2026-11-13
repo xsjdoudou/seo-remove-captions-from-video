@@ -107,6 +107,10 @@ const META: Record<Route, PageMeta> = {
     description:
       'A plain-English walkthrough of how burned-in subtitles are removed from video: text detection, masking, and temporal inpainting that rebuilds the background behind the letters.',
   },
+  '/pricing': {
+    title: `Pricing | ${SITE_NAME}`,
+    description: 'Compare credit packages and monthly plans for removing subtitles from video.',
+  },
   '/privacy': {
     title: `Privacy Policy | ${SITE_NAME}`,
     description: `How ${SITE_NAME} handles the videos you upload: what is stored, for how long, and what is never done with your files.`,

@@ -8,6 +8,7 @@ import Navbar from './components/Navbar'
 import Footer from './components/Footer'
 import HomePage from './components/HomePage'
 import HowItWorksPage from './components/HowItWorksPage'
+import Billing from './components/Billing'
 import { PrivacyPage, TermsPage } from './components/LegalPage'
 
 /**
@@ -88,6 +89,7 @@ export default function App({ initialRoute = '/' }: { initialRoute?: string }) {
       <main id="main">
         {route === '/' && <HomePage onNavigate={navigate} />}
         {route === '/how-it-works' && <HowItWorksPage onNavigate={navigate} />}
+        {route === '/pricing' && <Billing />}
         {route === '/privacy' && <PrivacyPage />}
         {route === '/terms' && <TermsPage />}
       </main>

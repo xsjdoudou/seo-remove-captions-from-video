@@ -24,6 +24,9 @@ export default function Navbar({ route, onNavigate }: { route: string; onNavigat
           <NavLink href="/how-it-works" onNavigate={onNavigate} className={route === '/how-it-works' ? 'is-current' : ''}>
             How it works
           </NavLink>
+          <NavLink href="/pricing" onNavigate={onNavigate} className={route === '/pricing' ? 'is-current' : ''}>
+            Pricing
+          </NavLink>
           <a className="btn btn--primary btn--sm" href="/#tool" onClick={() => onNavigate('/')}>
             Try it free
           </a>

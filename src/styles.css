@@ -1951,12 +1951,12 @@ main {
 }
 .billing { max-width: 1120px; margin: 48px auto; padding: 0 24px; }
 .billing__header { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
-.billing__header h2 { margin: 0; font-size: 24px; }
+.billing__header h1 { margin: 0; font-size: 32px; }
 .billing__header p { margin: 8px 0; }
 .billing__badge { color: #7a4d00; background: #fff1cb; padding: 4px 8px; border-radius: 4px; font-size: 12px; }
 .billing__plans { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-top: 20px; }
-.billing__plans > div { display: flex; flex-direction: column; gap: 10px; padding: 18px; border: 1px solid #d9dde2; border-radius: 6px; }
+.billing__plans > div { display: flex; flex-direction: column; gap: 10px; padding: 22px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); }
 .billing__plans span { font-size: 20px; font-weight: 600; }
-.billing__plans small { color: #555d66; }
+.billing__plans small { color: var(--text-muted); }
 @media (max-width: 760px) { .billing__plans { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 400px) { .billing__plans { grid-template-columns: 1fr; } }

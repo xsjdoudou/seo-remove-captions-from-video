@@ -7,7 +7,6 @@ import { NavLink } from './Navbar'
 import { FAQ, siteSchema, metaFor } from '../seo'
 import type { EraseMode } from '../lib/api'
 import { ClockIcon, GlobeIcon, LayersIcon, ShieldIcon, SparkIcon } from './icons'
-import Billing from './Billing'
 import { useEffect } from 'react'
 import { fetchServiceConfig } from '../lib/api'
 
@@ -81,8 +80,6 @@ export default function HomePage({ onNavigate }: { onNavigate: (to: string) => v
         <Workspace mode={mode} onBusyChange={setBusy} />
         <HistoryList open={historyOpen} onToggle={() => setHistoryOpen((value) => !value)} />
       </div>
-      {billingEnabled && <Billing />}
-
       {/*
         样例紧挨着工具放：从拖放框往下滚一眼就看到"去完长这样"。
         放到页面更下面去的话，它就只有已经被文案说服的人才看得见，
