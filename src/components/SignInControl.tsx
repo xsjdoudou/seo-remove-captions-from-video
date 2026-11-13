@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { getAuthState, mountGoogleButton, signInWithPassword, signOut, subscribeAuth, type AuthState } from '../lib/auth'
 
 /**
@@ -58,7 +59,7 @@ function AuthDialog({ clientId }: { clientId: string }) {
   return (
     <div className="auth">
       <button className="btn btn--ghost btn--sm" type="button" onClick={() => setOpen(true)}>Sign in</button>
-      {open && (
+      {open && createPortal(
         <div className="auth-dialog__backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) setOpen(false) }}>
           <section className="auth-dialog" role="dialog" aria-modal="true" aria-labelledby="auth-title">
             <button className="auth-dialog__close" type="button" aria-label="Close" title="Close" onClick={() => setOpen(false)}>×</button>
@@ -75,7 +76,8 @@ function AuthDialog({ clientId }: { clientId: string }) {
               {register ? 'Already have an account? Sign in' : 'New here? Create an account'}
             </button>
           </section>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   )
