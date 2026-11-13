@@ -1,6 +1,7 @@
 import { LogoIcon } from './icons'
 import { SITE_NAME } from '../config'
 import SignInControl from './SignInControl'
+import CreditStatus from './CreditStatus'
 
 /**
  * 导航栏。
@@ -32,6 +33,7 @@ export default function Navbar({ route, onNavigate }: { route: string; onNavigat
           </a>
           {/* 登录排在 CTA 右边：主按钮仍然是"开始用"，登录只是给回头客的入口。 */}
           <SignInControl />
+          <CreditStatus onNavigate={onNavigate} />
         </nav>
       </div>
     </header>

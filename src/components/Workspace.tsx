@@ -147,6 +147,7 @@ export default function Workspace({ mode, onBusyChange }: { mode: EraseMode; onB
         created = await promise
       } catch (err) {
         abortRef.current = null
+        window.dispatchEvent(new Event('credits-changed'))
         if (err instanceof ApiError && err.code === 'aborted') {
           reset()
           return
@@ -157,6 +158,7 @@ export default function Workspace({ mode, onBusyChange }: { mode: EraseMode; onB
       }
 
       abortRef.current = null
+      window.dispatchEvent(new Event('credits-changed'))
       setJob(created)
       setPhase('processing')
       // 任务一建好就记进历史:这之后用户随时可能关掉标签页,
@@ -185,6 +187,7 @@ export default function Workspace({ mode, onBusyChange }: { mode: EraseMode; onB
         setPhase('error')
         setMessage(err instanceof Error ? err.message : 'Lost contact with the server.')
       } finally {
+        window.dispatchEvent(new Event('credits-changed'))
         pollAbortRef.current = null
       }
     },

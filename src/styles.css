@@ -273,6 +273,22 @@ main {
   color: var(--accent-ink);
 }
 
+.credit-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-muted);
+  font-size: .8125rem;
+  white-space: nowrap;
+}
+
+.navbar__links .credit-status:hover {
+  color: var(--text);
+  border-color: var(--text-muted);
+}
+
 /* ── 登录 ──────────────────────────────────────────────────────────────
  *
  * 导航栏里的一小块。登录在这个站上是可选的——不登也能用——所以它排在
