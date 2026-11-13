@@ -14,7 +14,7 @@ import { formatBytes, formatDuration, progressFor, statusLabel } from '../lib/fo
 import { upsertEntry, removeEntry as removeHistoryEntry } from '../lib/history'
 import { AlertIcon, CheckIcon, DownloadIcon, UploadIcon } from './icons'
 
-type Phase = 'idle' | 'selecting' | 'uploading' | 'processing' | 'done' | 'error'
+type Phase = 'idle' | 'selecting' | 'uploading' | 'processing' | 'done' | 'error' | 'credits'
 
 /** 画面里一块被框住的区域，四个数都是 0~1 的比例。 */
 type Draft = { x0: number; y0: number; x1: number; y1: number }
@@ -45,7 +45,7 @@ export default function Workspace({ mode, onBusyChange }: { mode: EraseMode; onB
   const [uploadFraction, setUploadFraction] = useState(0)
   const [job, setJob] = useState<Job | null>(null)
   const [message, setMessage] = useState<string | null>(null)
-  const [creditNotice, setCreditNotice] = useState<{ required?: number; available?: number } | null>(null)
+  const [creditNotice, setCreditNotice] = useState<{ required?: number; available?: number; file: File; boxes: Area[] } | null>(null)
   const [dragging, setDragging] = useState(false)
   /** 本地源视频的 object URL。成片出来之后用它做"处理前"的对照。 */
   const [sourceUrl, setSourceUrl] = useState<string | null>(null)
@@ -156,8 +156,8 @@ export default function Workspace({ mode, onBusyChange }: { mode: EraseMode; onB
           return
         }
         if (err instanceof ApiError && err.code === 'insufficient_credits') {
-          reset()
-          setCreditNotice({ required: err.requiredCredits, available: err.availableCredits })
+          setPhase('credits')
+          setCreditNotice({ required: err.requiredCredits, available: err.availableCredits, file, boxes })
           return
         }
         setPhase('error')
@@ -340,6 +340,10 @@ export default function Workspace({ mode, onBusyChange }: { mode: EraseMode; onB
     if (mode === 'auto' && phase === 'selecting') reset()
   }, [mode, phase, reset])
 
+  useEffect(() => {
+    if (phase === 'credits' && creditNotice && mode !== (creditNotice.boxes.length ? 'box' : 'auto')) reset()
+  }, [mode, phase, creditNotice, reset])
+
   const pointFrom = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
     const box = event.currentTarget.getBoundingClientRect()
     return {
@@ -508,6 +512,12 @@ export default function Workspace({ mode, onBusyChange }: { mode: EraseMode; onB
         </div>
       )}
 
+      {phase === 'credits' && sourceUrl && (
+        <div className="stage stage--result">
+          <video className="stage__video" src={sourceUrl} controls playsInline preload="metadata" />
+        </div>
+      )}
+
       {phase === 'processing' && job && (
         <div className="stage stage--busy">
           {sourceUrl && <video className="stage__video" src={sourceUrl} muted autoPlay loop playsInline />}
@@ -605,6 +615,7 @@ export default function Workspace({ mode, onBusyChange }: { mode: EraseMode; onB
               ? 'Drag a box over the text you want gone.'
               : `${areas.length} box${areas.length > 1 ? 'es' : ''}${areas.length >= MAX_AREAS ? ' (the maximum)' : ''} · erased for the whole clip`)}
           {phase === 'uploading' && 'Uploading — you can cancel any time.'}
+          {phase === 'credits' && creditNotice?.file.name}
           {phase === 'processing' && job && `${job.filename}${job.durationSeconds ? ` · ${formatDuration(job.durationSeconds)}` : ''}`}
           {phase === 'done' && job && (
             <>
@@ -635,6 +646,14 @@ export default function Workspace({ mode, onBusyChange }: { mode: EraseMode; onB
               </button>
             </>
           )}
+          {phase === 'credits' && creditNotice && (
+            <>
+              <button type="button" className="btn btn--ghost btn--sm" onClick={reset}>Choose another video</button>
+              <button type="button" className="btn btn--primary btn--sm" onClick={() => void startUpload(creditNotice.file, creditNotice.boxes)}>
+                Try again
+              </button>
+            </>
+          )}
           {(phase === 'uploading' || phase === 'processing') && (
             <button type="button" className="btn btn--ghost btn--sm" onClick={cancelJob}>
               {phase === 'processing' && service?.billingEnabled ? 'Continue in background' : 'Cancel'}
@@ -660,7 +679,7 @@ export default function Workspace({ mode, onBusyChange }: { mode: EraseMode; onB
               {creditNotice.available !== undefined && creditNotice.required > creditNotice.available &&
                 <> You need {(creditNotice.required - creditNotice.available).toLocaleString()} more.</>}</>
             : <>You need more credits to process this video.</>}
-          {' '}<a href="/pricing">View pricing to get credits</a>
+          {' '}<a href="/pricing" target="_blank" rel="noopener noreferrer">View pricing to get credits</a>
         </p>
       )}
     </section>
