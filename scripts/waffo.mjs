@@ -6,7 +6,7 @@ import { BILLING_PLANS } from './credits.mjs'
 export async function loadWaffoPrivateKey(settings) {
   if (settings.privateKey) return settings.privateKey
   if (settings.privateKeyFile) return fsp.readFile(settings.privateKeyFile, 'utf8')
-  throw new Error('Waffo test configuration is incomplete')
+  throw new Error('Waffo configuration is incomplete')
 }
 
 export async function createTestCheckout(config, ledger, user, planId) {
@@ -15,9 +15,9 @@ export async function createTestCheckout(config, ledger, user, planId) {
   if (planId !== 'onetime' && ledger.getActiveSubscription(user.id)) throw new Error('An active subscription already exists')
   const settings = config.billing
   if (!settings.merchantId || !settings.storeId ||
-      !/^https:\/\//.test(config.publicBase)) throw new Error('Waffo test configuration is incomplete')
+      !/^https:\/\//.test(config.publicBase)) throw new Error('Waffo configuration is incomplete')
   const privateKey = await loadWaffoPrivateKey(settings)
-  const client = new WaffoPancake({ merchantId: settings.merchantId, privateKey, environment: 'test' })
+  const client = new WaffoPancake({ merchantId: settings.merchantId, privateKey, environment: settings.environment ?? 'test' })
   const id = `erase_${crypto.randomBytes(16).toString('hex')}`
   ledger.createCheckout(id, user.id, planId)
   const result = await client.checkout.authenticated.create({
@@ -38,10 +38,10 @@ export async function createTestCheckout(config, ledger, user, planId) {
 export async function createTestPortal(config, user) {
   const settings = config.billing
   if (!settings.merchantId || !settings.storeId || !settings.subscriptionsEnabled) {
-    throw new Error('Waffo test configuration is incomplete')
+    throw new Error('Waffo configuration is incomplete')
   }
   const privateKey = await loadWaffoPrivateKey(settings)
-  const client = new WaffoPancake({ merchantId: settings.merchantId, privateKey, environment: 'test' })
+  const client = new WaffoPancake({ merchantId: settings.merchantId, privateKey, environment: settings.environment ?? 'test' })
   const { portalUrl } = await client.auth.createCustomerPortalLink({ storeId: settings.storeId, buyerIdentity: user.id })
   const url = new URL(portalUrl)
   if (url.protocol !== 'https:' || url.hostname !== 'pancake.waffo.ai') throw new Error('Invalid portal URL')
@@ -49,7 +49,7 @@ export async function createTestPortal(config, user) {
 }
 
 export async function verifyTestWebhook(config, rawBody, signature) {
-  const options = { environment: 'test' }
+  const options = { environment: config.billing.environment ?? 'test' }
   if (config.billing.webhookPublicKeyFile) {
     options.publicKey = await fsp.readFile(config.billing.webhookPublicKeyFile, 'utf8')
   }
@@ -57,7 +57,7 @@ export async function verifyTestWebhook(config, rawBody, signature) {
 }
 
 export function applyTestWebhook(config, ledger, event) {
-  if (event.mode !== 'test' || !config.billing.storeId || event.storeId !== config.billing.storeId) {
+  if (event.mode !== (config.billing.environment ?? 'test') || !config.billing.storeId || event.storeId !== config.billing.storeId) {
     throw new Error('Webhook store or environment mismatch')
   }
   const data = event.data ?? {}

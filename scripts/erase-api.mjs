@@ -48,7 +48,14 @@ export async function createHandler(config = loadConfig()) {
   await store.load()
   const users = new UserStore(config.usersFile)
   await users.load()
-  const ledger = config.billing?.enabled ? new CreditLedger(path.join(config.dataDir, 'credits.sqlite')) : null
+  const productionLedger = path.join(config.dataDir, 'credits-prod.sqlite')
+  if (config.billing?.enabled && config.billing.environment === 'prod' && !fs.existsSync(productionLedger) &&
+      store.list().some((job) => job.billable && ACTIVE_STATUSES.includes(job.status))) {
+    throw new Error('Finish all active billable test jobs before switching to the production ledger')
+  }
+  const ledger = config.billing?.enabled
+    ? new CreditLedger(config.billing.environment === 'prod' ? productionLedger : path.join(config.dataDir, 'credits.sqlite'))
+    : null
   const authAttempts = new Map()
   const settleJob = async (id) => {
     const job = store.get(id)
@@ -150,9 +157,9 @@ export async function createHandler(config = loadConfig()) {
         }
         try {
           const checkoutUrl = await createTestCheckout(config, ledger, session, body.planId)
-          return sendJson(res, 200, { checkoutUrl, testMode: true })
+          return sendJson(res, 200, { checkoutUrl, testMode: config.billing.environment !== 'prod' })
         } catch (err) {
-          console.error(`[billing] test checkout unavailable: ${err.message}`)
+          console.error(`[billing] checkout unavailable: ${err.message}`)
           return sendJson(res, 503, { error: { code: 'not_available', message: 'Checkout is temporarily unavailable.' } })
         }
       }
@@ -164,7 +171,7 @@ export async function createHandler(config = loadConfig()) {
           res.setHeader('Cache-Control', 'no-store')
           return sendJson(res, 200, { portalUrl })
         } catch (err) {
-          console.error(`[billing] test portal unavailable: ${err.message}`)
+          console.error(`[billing] portal unavailable: ${err.message}`)
           return sendJson(res, 503, { error: { code: 'not_available', message: 'Subscription management is temporarily unavailable.' } })
         }
       }
@@ -186,7 +193,7 @@ export async function createHandler(config = loadConfig()) {
         try {
           return sendJson(res, 200, { received: true, ...applyTestWebhook(config, ledger, event) })
         } catch (err) {
-          console.error(`[billing] test webhook rejected: ${err.message}`)
+          console.error(`[billing] webhook rejected: ${err.message}`)
           return sendJson(res, 422, { error: { code: 'invalid_event', message: 'Webhook could not be processed.' } })
         }
       }
@@ -411,6 +418,7 @@ function publicConfig(config) {
     // 从这里下发而不是编译进 JS：换一个 Google 项目不用重新构建前端。
     googleClientId: config.auth.googleClientId,
     billingEnabled: Boolean(config.billing?.enabled),
+    billingTestMode: config.billing?.environment !== 'prod',
     testSubscriptionsEnabled: Boolean(config.billing?.enabled && config.billing?.subscriptionsEnabled),
   }
 }

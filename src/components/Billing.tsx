@@ -17,6 +17,7 @@ export default function Billing() {
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
   const [billingEnabled, setBillingEnabled] = useState(false)
+  const [testMode, setTestMode] = useState(true)
   const [subscriptionsEnabled, setSubscriptionsEnabled] = useState(false)
 
   useEffect(() => subscribeAuth(setAuth), [])
@@ -25,6 +26,7 @@ export default function Billing() {
     void fetchServiceConfig().then((config) => {
       if (active) {
         setBillingEnabled(Boolean(config.billingEnabled))
+        setTestMode(config.billingTestMode !== false)
         setSubscriptionsEnabled(Boolean(config.testSubscriptionsEnabled))
       }
     }).catch(() => {})
@@ -80,7 +82,7 @@ export default function Billing() {
           <p>Choose a one-time package or a monthly plan for your video projects.</p>
           {billingEnabled && <p>{auth.user ? (balance ? `${balance.total} credits available` : 'Loading balance...') : 'Sign in to receive 15 free credits.'}</p>}
         </div>
-        {billingEnabled && <span className="billing__badge">Test mode</span>}
+        {billingEnabled && testMode && <span className="billing__badge">Test mode</span>}
         {subscriptionsEnabled && balance?.plan && (
           <p><button className="btn btn--ghost btn--sm" type="button" disabled={busy} onClick={() => void openPortal()}>Manage subscription</button></p>
         )}
@@ -106,7 +108,7 @@ export default function Billing() {
             </div>
             <div className="billing__action">
                 <button className="btn btn--primary" disabled={!billingEnabled || (plan.monthly && !subscriptionsEnabled) || !auth.user || busy || (plan.monthly && !!balance?.plan)} onClick={() => void checkout(plan.id)}>
-                  {!billingEnabled || (plan.monthly && !subscriptionsEnabled) ? 'Coming soon' : !auth.user ? 'Sign in to continue' : plan.monthly && balance?.plan ? 'Subscription active' : busy ? 'Opening...' : 'Test checkout'}
+                  {!billingEnabled || (plan.monthly && !subscriptionsEnabled) ? 'Coming soon' : !auth.user ? 'Sign in to continue' : plan.monthly && balance?.plan ? 'Subscription active' : busy ? 'Opening...' : testMode ? 'Test checkout' : 'Checkout'}
                 </button>
             </div>
           </article>

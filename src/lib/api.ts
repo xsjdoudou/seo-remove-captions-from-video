@@ -61,6 +61,7 @@ export interface ServiceConfig {
   /** 空字符串表示这台服务器没开 Google 登录，前端据此隐藏整个入口。 */
   googleClientId: string
   billingEnabled?: boolean
+  billingTestMode?: boolean
   testSubscriptionsEnabled?: boolean
 }
 

@@ -62,6 +62,8 @@ function resolveSessionSecret(dataDir) {
 
 export function loadConfig() {
   const dataDir = path.resolve(REPO_ROOT, str('DATA_DIR', './data'))
+  const billingEnvironment = str('WAFFO_ENVIRONMENT', 'test').toLowerCase()
+  if (!['test', 'prod'].includes(billingEnvironment)) throw new Error('WAFFO_ENVIRONMENT must be test or prod')
 
   const bucket = str('TENCENT_COS_BUCKET')
   const region = str('TENCENT_COS_REGION')
@@ -98,6 +100,7 @@ export function loadConfig() {
     usersFile: path.join(dataDir, 'users.json'),
     billing: {
       enabled: str('BILLING_ENABLED', 'false').toLowerCase() === 'true',
+      environment: billingEnvironment,
       subscriptionsEnabled: str('BILLING_TEST_SUBSCRIPTIONS_ENABLED', 'false').toLowerCase() === 'true',
       merchantId: str('WAFFO_MERCHANT_ID'),
       storeId: str('WAFFO_STORE_ID'),

@@ -36,6 +36,30 @@ test('test payment is bound to a local order and deduplicated', (t) => {
   assert.equal(ledger.reserve('user1', 'job', 1), 'billing_hold')
 })
 
+test('production events are isolated from test events and the test ledger', (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'waffo-prod-'))
+  const sandbox = new CreditLedger(path.join(dir, 'credits.sqlite'))
+  const production = new CreditLedger(path.join(dir, 'credits-prod.sqlite'))
+  t.after(() => { sandbox.close(); production.close(); fs.rmSync(dir, { recursive: true, force: true }) })
+  sandbox.createCheckout('test-checkout', 'user1', 'onetime')
+  sandbox.recordOneTimePayment('test-checkout', 'test-payment')
+  production.createCheckout('prod-checkout', 'user1', 'onetime')
+  const config = { billing: { environment: 'prod', storeId: 'store1' } }
+  const event = {
+    mode: 'prod', storeId: 'store1', eventType: 'order.completed',
+    data: { orderMerchantExternalId: 'prod-checkout', paymentId: 'prod-payment',
+      paymentStatus: 'succeeded', currency: 'USD', chargedAmount: '2.90' },
+  }
+  assert.equal(production.balance('user1').total, 15)
+  assert.throws(() => applyTestWebhook(config, production, { ...event, mode: 'test' }))
+  assert.throws(() => applyTestWebhook(config, production, { ...event,
+    data: { ...event.data, orderMerchantExternalId: 'test-checkout' } }))
+  assert.deepEqual(applyTestWebhook(config, production, event), { credited: true })
+  assert.deepEqual(applyTestWebhook(config, production, event), { credited: false })
+  assert.equal(production.balance('user1').total, 315)
+  assert.equal(sandbox.balance('user1').total, 315)
+})
+
 test('subscription periods are bound to checkout and cannot grant twice or rewind', (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'waffo-sub-'))
   const ledger = new CreditLedger(path.join(dir, 'credits.sqlite'))
