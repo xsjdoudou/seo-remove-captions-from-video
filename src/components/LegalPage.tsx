@@ -8,7 +8,7 @@ import { CONTACT_EMAIL, SITE_NAME } from '../config'
  * 真出事时也帮不了你。改了保留策略记得回来改这一页。
  */
 
-const UPDATED = 'November 2025'
+const UPDATED = 'November 14, 2026'
 const TERMS_UPDATED = 'November 13, 2026'
 
 export function PrivacyPage() {
@@ -18,8 +18,8 @@ export function PrivacyPage() {
       <p className="article__meta">Last updated: {UPDATED}</p>
 
       <p className="article__lede">
-        The short version: your video is used for one thing — producing your result — and then it is deleted. You can
-        use the tool without an account; creating one is optional.
+        The short version: your video is used for one thing — producing your result — and then it is deleted. Sign in
+        with Google or an email account to submit a video for processing.
       </p>
 
       <h2>What we handle</h2>
@@ -44,13 +44,13 @@ export function PrivacyPage() {
         </li>
       </ul>
       <p>
-        Signing in is optional. Without it we never learn your name, email address or payment details — the tool works
-        exactly the same, and the only thing you give up is seeing your history on another device.
+        You can browse the site, view the demo and check pricing without signing in. Processing a video requires an
+        account when credit billing is enabled. New accounts receive 15 free credits.
       </p>
 
       <h2>Signing in with Google</h2>
       <p>
-        If you choose to sign in, your browser loads Google&rsquo;s sign-in script at that moment — not before — and
+        If you sign in with Google, your browser loads Google&rsquo;s sign-in script at that moment — not before — and
         Google tells us your account identifier, name, email address and profile picture. We never see your Google
         password, and we ask for no other access to your Google account.
       </p>
@@ -86,7 +86,7 @@ export function PrivacyPage() {
       <p>
         Your original upload is deleted as soon as the processed video has been retrieved — typically within minutes of
         the job finishing. Both the original and the result are deleted automatically no more than 24 hours after
-        upload, whether or not you downloaded anything, and whether or not you have an account. Deletion is permanent;
+        upload, whether or not you downloaded anything. Deletion is permanent;
         we keep no backup copies of user videos.
       </p>
       <p>You can also delete a job yourself at any time by starting a new one or closing out of the result.</p>
@@ -112,9 +112,8 @@ export function PrivacyPage() {
 
       <h2>Your choices</h2>
       <p>
-        You can use the whole tool without signing in, in which case we hold no personal identifier beyond a short-lived
-        IP record and there is usually nothing left to delete by the time you would ask. If you do have an account, or
-        you believe we hold something of yours and you want it removed, write to{' '}
+        You can browse the site without signing in. If you have an account, or you believe we hold something of yours
+        and you want it removed, write to{' '}
         <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a> and we will deal with it.
       </p>
 

@@ -46,7 +46,7 @@ export default function HomePage({ onNavigate }: { onNavigate: (to: string) => v
   const [mode, setMode] = useState<EraseMode>('auto')
   /** 有任务在跑时不让切模式：切了也改不了已经提交出去的那个任务。 */
   const [busy, setBusy] = useState(false)
-  const [billingEnabled, setBillingEnabled] = useState(false)
+  const [billingEnabled, setBillingEnabled] = useState<boolean | null>(null)
   useEffect(() => {
     void fetchServiceConfig().then((config) => setBillingEnabled(Boolean(config.billingEnabled))).catch(() => {})
   }, [])
@@ -69,7 +69,7 @@ export default function HomePage({ onNavigate }: { onNavigate: (to: string) => v
               The AI rebuilds the background behind the lettering — no blur box, no cropped frame.
             </p>
             <ul className="hero__badges">
-              <li>{billingEnabled ? '15 free credits' : 'No signup'}</li>
+              {billingEnabled !== null && <li>{billingEnabled ? '15 free credits' : 'No signup'}</li>}
               <li>No watermark</li>
               <li>Deleted in 24 h</li>
             </ul>

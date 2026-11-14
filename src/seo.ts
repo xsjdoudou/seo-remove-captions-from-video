@@ -31,7 +31,7 @@ export const FAQ: { q: string; a: string }[] = [
   },
   {
     q: 'Do I need to install anything?',
-    a: 'No. Everything runs in your browser and on our servers. There is nothing to download and no plugin to install. An account is optional if you want your history to follow you between devices.',
+    a: 'No. Everything runs in your browser and on our servers, with nothing to download or install. Sign in with Google or an email account to process videos and access your history across devices. New accounts receive 15 free credits when credit billing is enabled.',
   },
   {
     q: 'What video formats are supported?',
@@ -62,7 +62,7 @@ export const FAQ: { q: string; a: string }[] = [
 const HOME_META: PageMeta = {
   title: `Remove Subtitles From Video Online — Free AI Hardcoded Caption Remover | ${SITE_NAME}`,
   description:
-    'Remove hardcoded subtitles and burned-in captions from any video online. The AI repaints the background behind the text instead of blurring or cropping it. No signup, no watermark, free to try.',
+    'Remove hardcoded subtitles and burned-in captions from video online. The AI repaints the background instead of blurring or cropping it. No watermark, free credits for new accounts.',
   schema: [
     {
       '@context': 'https://schema.org',
