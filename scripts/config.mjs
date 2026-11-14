@@ -121,6 +121,7 @@ export function loadConfig() {
     recordRetentionMs: int('RECORD_RETENTION_MS', 30 * 24 * 60 * 60 * 1000, { min: 60_000 }),
     rateLimitConcurrent: int('RATE_LIMIT_CONCURRENT', 2, { min: 1 }),
     rateLimitDaily: int('RATE_LIMIT_DAILY', 10, { min: 1 }),
+    rateLimitDailyExemptUsers: str('RATE_LIMIT_DAILY_EXEMPT_USERS').split(',').map((id) => id.trim()).filter(Boolean),
     // 生产环境站在 nginx/caddy 后面时打开，否则所有请求的来源 IP 都会是
     // 127.0.0.1，限流等于形同虚设。直接裸奔在公网时必须关着,
     // 不然任何人伪造一个 X-Forwarded-For 就能绕过限流。

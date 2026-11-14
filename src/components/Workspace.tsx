@@ -14,7 +14,7 @@ import { formatBytes, formatDuration, progressFor, statusLabel } from '../lib/fo
 import { upsertEntry, removeEntry as removeHistoryEntry } from '../lib/history'
 import { AlertIcon, CheckIcon, DownloadIcon, UploadIcon } from './icons'
 
-type Phase = 'idle' | 'selecting' | 'uploading' | 'processing' | 'done' | 'error' | 'credits'
+type Phase = 'idle' | 'ready' | 'selecting' | 'uploading' | 'processing' | 'done' | 'error' | 'credits'
 
 /** 画面里一块被框住的区域，四个数都是 0~1 的比例。 */
 type Draft = { x0: number; y0: number; x1: number; y1: number }
@@ -51,7 +51,7 @@ export default function Workspace({ mode, onBusyChange }: { mode: EraseMode; onB
   const [sourceUrl, setSourceUrl] = useState<string | null>(null)
   const [showBefore, setShowBefore] = useState(false)
 
-  /** 框选模式下，选好但还没上传的那个文件。 */
+  /** 选好但还没上传的文件。 */
   const [pending, setPending] = useState<File | null>(null)
   const [areas, setAreas] = useState<Area[]>([])
   const [draft, setDraft] = useState<Draft | null>(null)
@@ -132,8 +132,7 @@ export default function Workspace({ mode, onBusyChange }: { mode: EraseMode; onB
   /**
    * 真正开始传。
    *
-   * 和选文件分开：框选模式下这两件事中间隔着用户画框的那一段，
-   * 而自动模式是选完直接走这里。
+   * 和选文件分开，用户确认之后才开始上传。
    */
   const startUpload = useCallback(
     async (file: File, boxes: Area[]) => {
@@ -205,7 +204,7 @@ export default function Workspace({ mode, onBusyChange }: { mode: EraseMode; onB
   /**
    * 选中了一个文件。
    *
-   * 自动模式直接传；框选模式停在 selecting，等用户把框画完。
+   * 自动模式先预览确认；框选模式停在 selecting，等用户把框画完。
    * 两种模式都先在本地挡一次体积——没必要让用户把超限的文件整个传上去再被拒。
    */
   const handleFile = useCallback(
@@ -225,15 +224,10 @@ export default function Workspace({ mode, onBusyChange }: { mode: EraseMode; onB
       setDraft(null)
       setFrame(null)
 
-      if (mode === 'box') {
-        setPending(file)
-        setPhase('selecting')
-        return
-      }
-      setPending(null)
-      void startUpload(file, [])
+      setPending(file)
+      setPhase(mode === 'box' ? 'selecting' : 'ready')
     },
-    [mode, service, startUpload],
+    [mode, service],
   )
 
   const onDrop = useCallback(
@@ -338,6 +332,7 @@ export default function Workspace({ mode, onBusyChange }: { mode: EraseMode; onB
    */
   useEffect(() => {
     if (mode === 'auto' && phase === 'selecting') reset()
+    if (mode === 'box' && phase === 'ready') reset()
   }, [mode, phase, reset])
 
   useEffect(() => {
@@ -442,6 +437,12 @@ export default function Workspace({ mode, onBusyChange }: { mode: EraseMode; onB
               if (file) handleFile(file)
             }}
           />
+        </div>
+      )}
+
+      {phase === 'ready' && sourceUrl && (
+        <div className="stage">
+          <video className="stage__video" src={sourceUrl} controls playsInline preload="metadata" />
         </div>
       )}
 
@@ -610,6 +611,7 @@ export default function Workspace({ mode, onBusyChange }: { mode: EraseMode; onB
       <div className="toolbar">
         <p className="toolbar__meta">
           {phase === 'idle' && limits}
+          {phase === 'ready' && pending && pending.name}
           {phase === 'selecting' &&
             (areas.length === 0
               ? 'Drag a box over the text you want gone.'
@@ -626,6 +628,14 @@ export default function Workspace({ mode, onBusyChange }: { mode: EraseMode; onB
         </p>
 
         <div className="toolbar__actions">
+          {phase === 'ready' && pending && (
+            <>
+              <button type="button" className="btn btn--ghost btn--sm" onClick={reset}>Cancel</button>
+              <button type="button" className="btn btn--primary btn--sm" onClick={() => void startUpload(pending, [])}>
+                Remove subtitles
+              </button>
+            </>
+          )}
           {phase === 'selecting' && (
             <>
               <button type="button" className="btn btn--ghost btn--sm" onClick={reset}>

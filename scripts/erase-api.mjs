@@ -802,7 +802,7 @@ export function parseAreas(raw) {
  * 运营商 NAT 后面的人共用一个出口 IP，按 IP 算等于让他们互相挤占额度。
  * 额度本身两边一样——登录只是让它算得更准，不是更宽。
  */
-function checkRateLimit({ store, pipeline, config, ip, userId }) {
+export function checkRateLimit({ store, pipeline, config, ip, userId }) {
   const owner = userId ? { field: 'userId', value: userId } : { field: 'ip', value: ip }
   if (pipeline.activeCountForOwner(owner) >= config.rateLimitConcurrent) {
     return {
@@ -810,6 +810,7 @@ function checkRateLimit({ store, pipeline, config, ip, userId }) {
       message: `You already have ${config.rateLimitConcurrent} video(s) processing. Please wait for them to finish.`,
     }
   }
+  if (userId && config.rateLimitDailyExemptUsers?.includes(userId)) return null
   const since = Date.now() - DAY_MS
   const today = store.list().filter((job) => job[owner.field] === owner.value && job.createdAt >= since).length
   if (today >= config.rateLimitDaily) {
