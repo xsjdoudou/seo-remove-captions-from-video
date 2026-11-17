@@ -13,7 +13,7 @@ export default function BurnedSubtitlesPage({ onNavigate }: { onNavigate: (to: s
         <span aria-current="page">Remove burned-in subtitles</span>
       </nav>
 
-      <VideoStudio>
+      <VideoStudio ariaLabel="Remove burned-in subtitles from a video">
         <section className="hero">
           <div className="hero__inner">
             <h1 className="hero__title">Remove burned-in subtitles</h1>

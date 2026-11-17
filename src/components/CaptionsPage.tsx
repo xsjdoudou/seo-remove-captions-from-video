@@ -13,7 +13,7 @@ export default function CaptionsPage({ onNavigate }: { onNavigate: (to: string) 
         <span aria-current="page">Remove captions from video</span>
       </nav>
 
-      <VideoStudio>
+      <VideoStudio ariaLabel="Remove captions from a video">
         <section className="hero">
           <div className="hero__inner">
             <h1 className="hero__title">Remove captions from video</h1>

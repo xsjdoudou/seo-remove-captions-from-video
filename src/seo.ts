@@ -281,15 +281,15 @@ export function metaFor(route: Route): PageMeta {
   return META[route] ?? HOME_META
 }
 
-/** 站点级结构化数据，每个页面都带上。 */
+/** WebSite 只在首页输出，SoftwareApplication 供各页面共用。 */
 export function siteSchema(route: Route = '/'): Record<string, unknown>[] {
   return [
-    {
+    ...(route === '/' ? [{
       '@context': 'https://schema.org',
       '@type': 'WebSite',
       name: SITE_NAME,
       url: SITE_URL,
-    },
+    }] : []),
     {
       '@context': 'https://schema.org',
       '@type': 'SoftwareApplication',

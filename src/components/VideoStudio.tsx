@@ -5,7 +5,7 @@ import HistoryList from './HistoryList'
 import ModePicker from './ModePicker'
 import Workspace from './Workspace'
 
-export default function VideoStudio({ children }: { children: ReactNode }) {
+export default function VideoStudio({ children, ariaLabel }: { children: ReactNode; ariaLabel?: string }) {
   const [historyOpen, setHistoryOpen] = useState(true)
   const [mode, setMode] = useState<EraseMode>('auto')
   const [busy, setBusy] = useState(false)
@@ -14,7 +14,7 @@ export default function VideoStudio({ children }: { children: ReactNode }) {
     <div className="studio">
       {children}
       <ModePicker mode={mode} onChange={setMode} disabled={busy} />
-      <Workspace mode={mode} onBusyChange={setBusy} />
+      <Workspace mode={mode} onBusyChange={setBusy} ariaLabel={ariaLabel} />
       <HistoryList open={historyOpen} onToggle={() => setHistoryOpen((value) => !value)} />
     </div>
   )

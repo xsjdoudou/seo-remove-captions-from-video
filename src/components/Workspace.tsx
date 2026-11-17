@@ -41,7 +41,7 @@ const MAX_AREAS = 6
  * 框选模式会在中间多一步：选完文件先停在 selecting,让用户在画面上画框,
  * 按下按钮才真的开始上传。
  */
-export default function Workspace({ mode, onBusyChange }: { mode: EraseMode; onBusyChange?: (busy: boolean) => void }) {
+export default function Workspace({ mode, onBusyChange, ariaLabel = 'Remove subtitles from a video' }: { mode: EraseMode; onBusyChange?: (busy: boolean) => void; ariaLabel?: string }) {
   const [service, setService] = useState<ServiceConfig | null>(null)
   const [phase, setPhase] = useState<Phase>('idle')
   const [uploadFraction, setUploadFraction] = useState(0)
@@ -438,7 +438,7 @@ export default function Workspace({ mode, onBusyChange }: { mode: EraseMode; onB
   }, [pending, areas, startUpload])
 
   return (
-    <section className="workspace" id="tool" aria-label="Remove subtitles from a video">
+    <section className="workspace" id="tool" aria-label={ariaLabel}>
       {service && !service.ready && (
         <p className="workspace__banner">
           <AlertIcon className="icon" />
