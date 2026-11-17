@@ -60,9 +60,9 @@ export const FAQ: { q: string; a: string }[] = [
 ]
 
 const HOME_META: PageMeta = {
-  title: `Remove Subtitles From Video Online — Free AI Hardcoded Caption Remover | ${SITE_NAME}`,
+  title: 'Remove Text from Video — Free AI Subtitle & Caption Remover',
   description:
-    'Remove hardcoded subtitles and burned-in captions from video online. The AI repaints the background instead of blurring or cropping it. No watermark, free credits for new accounts.',
+    'Remove text from video, including hardcoded subtitles and captions. AI rebuilds the background without cropping or adding a watermark.',
   schema: [
     {
       '@context': 'https://schema.org',

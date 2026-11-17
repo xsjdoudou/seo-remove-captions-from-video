@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import type { IncomingMessage, ServerResponse } from 'node:http'
 import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 
@@ -23,7 +24,7 @@ function prerenderedPages(): Plugin {
     name: 'prerendered-pages',
     configurePreviewServer: async (server) => {
       server.middlewares.use(((req: never, res: never, next: never) => {
-        rewriteToPrerendered(req as unknown as { url?: string })
+        if (rewriteToPrerendered(req as unknown as IncomingMessage, res as unknown as ServerResponse)) return
         ;(next as unknown as () => void)()
       }) as never)
     },
@@ -31,22 +32,30 @@ function prerenderedPages(): Plugin {
 }
 
 /** 把 /route 改写成 /route/index.html（仅当这个文件真的存在时）。 */
-function rewriteToPrerendered(req: { url?: string }): void {
+function rewriteToPrerendered(req: { url?: string }, res: ServerResponse): boolean {
   const raw = req.url ?? '/'
   const queryAt = raw.indexOf('?')
   const pathname = queryAt === -1 ? raw : raw.slice(0, queryAt)
   const query = queryAt === -1 ? '' : raw.slice(queryAt)
 
   // 带扩展名的是静态资源，根路径本来就命中 index.html，都不用管。
-  if (pathname === '/' || path.extname(pathname)) return
+  if (pathname === '/' || path.extname(pathname)) return false
 
   const clean = pathname.replace(/\/+$/, '')
   const candidate = path.join(DIST, clean, 'index.html')
   // path.join 会解析掉 ../，这一步确认改写目标没有跑出 dist 之外。
-  if (!candidate.startsWith(DIST + path.sep)) return
-  if (!fs.existsSync(candidate)) return
+  if (!candidate.startsWith(DIST + path.sep)) return false
+  if (!fs.existsSync(candidate)) return false
+
+  if (pathname.endsWith('/')) {
+    res.statusCode = 301
+    res.setHeader('Location', `${clean}${query}`)
+    res.end()
+    return true
+  }
 
   req.url = `${clean}/index.html${query}`
+  return false
 }
 
 /**

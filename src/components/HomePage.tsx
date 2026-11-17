@@ -64,14 +64,15 @@ export default function HomePage({ onNavigate }: { onNavigate: (to: string) => v
       <div className="studio">
         <section className="hero">
           <div className="hero__inner">
-            <h1 className="hero__title">Remove hardcoded subtitles from video</h1>
+            <h1 className="hero__title">Remove text and subtitles from video</h1>
             <p className="hero__subtitle">
-              The AI rebuilds the background behind the lettering — no blur box, no cropped frame.
+              Remove text from video when it appears as subtitles or captions. AI rebuilds the background without
+              blurring or cropping.
             </p>
             <ul className="hero__badges">
               {billingEnabled !== null && <li>{billingEnabled ? '15 free credits' : 'No signup'}</li>}
               <li>No watermark</li>
-              <li>Deleted in 24 h</li>
+              <li>Kept for 30 days</li>
             </ul>
           </div>
         </section>
@@ -100,7 +101,7 @@ export default function HomePage({ onNavigate }: { onNavigate: (to: string) => v
       <section className="section" id="features">
         <h2 className="section__title">Why the result looks clean</h2>
         <p className="section__lede">
-          Most subtitle removers crop the frame or paste a blur box over the words. Both leave a scar.
+          To remove text from video without cropping, the AI reconstructs the background behind subtitle-style lettering.
         </p>
         <div className="cards">
           <Card icon={<LayersIcon className="card__icon" />} title="Repainted, not covered">
@@ -205,8 +206,7 @@ export default function HomePage({ onNavigate }: { onNavigate: (to: string) => v
             clean master to re-subtitle however you like.
           </UseCase>
           <UseCase title="Repurposing social clips">
-            Short-form videos arrive covered in auto-captions. Removing them gives you a neutral cut that fits a
-            different platform, a different edit, or a different voiceover.
+            Creators remove text from video to reuse clips with auto-captions across platforms, edits, or voiceovers.
           </UseCase>
           <UseCase title="Cleaning up screen recordings">
             Auto-generated captions baked into a recording can be taken out without re-recording the whole session.
