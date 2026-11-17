@@ -10,11 +10,64 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import fsp from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
 
 import { sanitizeFilename, videoExtension, contentTypeFor } from '../scripts/media.mjs'
 import { parseEnv } from '../scripts/env.mjs'
-import { serializeJob, parseRange, parseAreas } from '../scripts/erase-api.mjs'
+import { serializeJob, parseRange, parseAreas, sweep } from '../scripts/erase-api.mjs'
 import { JobStore } from '../scripts/store.mjs'
+
+test('sweep keeps video files for 30 days and removes them after expiry', async (t) => {
+  const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'retention-test-'))
+  t.after(() => fsp.rm(dir, { recursive: true, force: true }))
+  const day = 86_400_000
+  const now = Date.now()
+  const recentSource = path.join(dir, 'recent-source.mp4')
+  const recentResult = path.join(dir, 'recent-result.mp4')
+  const oldSource = path.join(dir, 'old-source.mp4')
+  const oldResult = path.join(dir, 'old-result.mp4')
+  await Promise.all([recentSource, recentResult, oldSource, oldResult].map((file) => fsp.writeFile(file, 'video')))
+  const jobs = [
+    { id: 'recent', status: 'completed', createdAt: now - 2 * day, updatedAt: now - 2 * day, sourcePath: recentSource, resultPath: recentResult },
+    { id: 'old', status: 'completed', createdAt: now - 31 * day, updatedAt: now - 31 * day, sourcePath: oldSource, resultPath: oldResult },
+  ]
+  const store = {
+    list: () => [...jobs],
+    update: (id, patch) => Object.assign(jobs.find((job) => job.id === id), patch),
+    delete: (id) => jobs.splice(jobs.findIndex((job) => job.id === id), 1),
+    findByToken: () => null,
+    flush: async () => {},
+  }
+  await sweep({ retentionMs: 30 * day, recordRetentionMs: 30 * day, sourceDir: path.join(dir, 'sources'), resultDir: path.join(dir, 'results') }, store)
+  await Promise.all([recentSource, recentResult].map((file) => fsp.access(file)))
+  for (const file of [oldSource, oldResult]) await assert.rejects(fsp.access(file), { code: 'ENOENT' })
+  assert.deepEqual(jobs.map((job) => job.id), ['recent'])
+})
+
+test('sweep retains anonymous and signed-in records after files expire, then removes them at record expiry', async () => {
+  const day = 86_400_000
+  const now = Date.now()
+  const jobs = [
+    { id: 'anonymous', status: 'completed', createdAt: now - 2 * day, updatedAt: now - 2 * day },
+    { id: 'signed-in', userId: 'user', status: 'completed', createdAt: now - 2 * day, updatedAt: now - 2 * day },
+    { id: 'old', status: 'completed', createdAt: now - 31 * day, updatedAt: now - 31 * day },
+  ]
+  const store = {
+    list: () => [...jobs],
+    update: (id, patch) => Object.assign(jobs.find((job) => job.id === id), patch),
+    delete: (id) => jobs.splice(jobs.findIndex((job) => job.id === id), 1),
+    findByToken: () => null,
+    flush: async () => {},
+  }
+  await sweep({ retentionMs: day, recordRetentionMs: 30 * day, sourceDir: '/nonexistent-source', resultDir: '/nonexistent-result' }, store)
+  assert.deepEqual(jobs.map((job) => job.id), ['anonymous', 'signed-in'])
+  for (const job of jobs) {
+    assert.ok(job.filesPurgedAt)
+    assert.equal(serializeJob(job, { retentionMs: day, recordRetentionMs: 30 * day }).status, 'expired')
+  }
+})
 
 test('sanitizeFilename strips directory components', () => {
   assert.equal(sanitizeFilename('../../etc/passwd.mp4'), 'passwd.mp4')

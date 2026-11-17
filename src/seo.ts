@@ -43,7 +43,7 @@ export const FAQ: { q: string; a: string }[] = [
   },
   {
     q: 'Is my video kept private?',
-    a: 'Your upload is used for one thing only: producing your result. The original is deleted as soon as the result is ready, both files are gone within 24 hours, and nothing is shared, published or used for training.',
+    a: 'Your upload is used for one thing only: producing your result. The original and processed video are kept for 30 days, and nothing is shared, published or used for training.',
   },
   {
     q: 'Will the video quality drop?',

@@ -114,10 +114,8 @@ export function loadConfig() {
 
     maxUploadBytes: int('MAX_UPLOAD_BYTES', 600 * 1024 * 1024, { min: 1024 }),
     maxDurationSeconds: int('MAX_DURATION_SECONDS', 900, { min: 0 }),
-    retentionMs: int('RETENTION_MS', 24 * 60 * 60 * 1000, { min: 60_000 }),
-    // 登录用户的任务**记录**保留多久。视频文件仍然按 RETENTION_MS 删掉，
-    // 这里留下的只是文件名、时长、状态这些元数据，好让人隔几天回来还能看到
-    // 自己处理过什么。匿名任务不适用：它们没有归属，记录跟着文件一起清掉。
+    retentionMs: int('RETENTION_MS', 30 * 24 * 60 * 60 * 1000, { min: 60_000 }),
+    // 任务记录的保留期；视频文件仍按 RETENTION_MS 删除。
     recordRetentionMs: int('RECORD_RETENTION_MS', 30 * 24 * 60 * 60 * 1000, { min: 60_000 }),
     rateLimitConcurrent: int('RATE_LIMIT_CONCURRENT', 2, { min: 1 }),
     rateLimitDaily: int('RATE_LIMIT_DAILY', 10, { min: 1 }),
@@ -181,7 +179,7 @@ export function describeConfig(config) {
     `data dir            ${config.dataDir}`,
     `max upload          ${(config.maxUploadBytes / 1024 / 1024).toFixed(0)} MB`,
     `max duration        ${config.maxDurationSeconds || 'unlimited'} s`,
-    `retention           ${(config.retentionMs / 3600_000).toFixed(1)} h files / ${(config.recordRetentionMs / 86_400_000).toFixed(0)} d records (signed-in)`,
+    `retention           ${(config.retentionMs / 3600_000).toFixed(1)} h files / ${(config.recordRetentionMs / 86_400_000).toFixed(0)} d records`,
     `rate limit          ${config.rateLimitConcurrent} concurrent / ${config.rateLimitDaily} per day per IP or account`,
     `google sign-in      ${config.auth.googleClientId ? 'enabled' : 'disabled (GOOGLE_CLIENT_ID unset)'}`,
     `session cookie      ${config.auth.cookieSecure ? 'Secure' : 'not Secure — http only, do not use in production'}`,

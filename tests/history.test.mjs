@@ -127,22 +127,24 @@ test('newest entries come first', () => {
   )
 })
 
-test('loadHistory drops entries whose files the server has already deleted', () => {
+test('loadHistory retains records after file expiry and removes them after record expiry', () => {
   const now = Date.now()
-  history.upsertEntry(job({ id: 'a'.repeat(24), expiresAt: now - HOUR }))
-  history.upsertEntry(job({ id: 'b'.repeat(24), expiresAt: now + HOUR }))
+  history.upsertEntry(job({ id: 'a'.repeat(24), status: 'completed', expiresAt: now - HOUR, downloadUrl: '/old' }))
+  history.upsertEntry(job({ id: 'b'.repeat(24), recordExpiresAt: now - HOUR }))
 
   const entries = history.loadHistory()
   assert.equal(entries.length, 1)
-  assert.equal(entries[0].id, 'b'.repeat(24))
+  assert.equal(entries[0].id, 'a'.repeat(24))
+  assert.equal(entries[0].status, 'expired')
+  assert.equal(entries[0].downloadUrl, null)
 })
 
-test('the list is capped so it cannot grow without bound', () => {
+test('the list retains more than twelve records', () => {
   for (let i = 0; i < 30; i += 1) {
     history.upsertEntry(job({ id: i.toString(16).padStart(24, '0'), filename: `clip-${i}.mp4` }))
   }
   const entries = history.loadHistory()
-  assert.ok(entries.length <= 12, `expected at most 12 entries, got ${entries.length}`)
+  assert.equal(entries.length, 30)
   // 留下的应该是最新的那些。
   assert.equal(entries[0].filename, 'clip-29.mp4')
 })

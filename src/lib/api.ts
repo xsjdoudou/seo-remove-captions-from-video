@@ -8,8 +8,8 @@
 /**
  * 任务状态。
  *
- * `expired` 不是流水线的某一步：它表示记录还在（登录用户的历史保留 30 天）
- * 但视频文件已经到了 24 小时的清理期被删掉了。
+ * `expired` 不是流水线的某一步：它表示记录还在（默认保留 30 天）
+ * 但视频文件已经到了清理期被删掉了。
  */
 export type JobStatus =
   | 'uploading'
@@ -44,6 +44,7 @@ export interface Job {
   submittedAt: number | null
   completedAt: number | null
   expiresAt: number
+  recordExpiresAt?: number
   resultUrl: string | null
   downloadUrl: string | null
   resultBytes: number | null
@@ -56,7 +57,7 @@ export interface ServiceConfig {
   maxDurationSeconds: number
   accept: string
   retentionHours: number
-  /** 登录用户的任务记录保留多少天。文件仍然只留 retentionHours。 */
+  /** 任务记录保留多少天。文件仍然只留 retentionHours。 */
   historyDays: number
   /** 空字符串表示这台服务器没开 Google 登录，前端据此隐藏整个入口。 */
   googleClientId: string
@@ -157,14 +158,18 @@ export async function fetchJobs(): Promise<Job[]> {
  */
 export async function claimJobs(ids: string[]): Promise<Job[]> {
   if (ids.length === 0) return fetchJobs()
-  const response = await fetch('/api/jobs/claim', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', accept: 'application/json' },
-    body: JSON.stringify({ ids }),
-  })
-  const body = await readJson(response)
-  if (!response.ok) throw toApiError(body, response.status)
-  return (body as { jobs: Job[] }).jobs
+  let jobs: Job[] = []
+  for (let offset = 0; offset < ids.length; offset += 50) {
+    const response = await fetch('/api/jobs/claim', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', accept: 'application/json' },
+      body: JSON.stringify({ ids: ids.slice(offset, offset + 50) }),
+    })
+    const body = await readJson(response)
+    if (!response.ok) throw toApiError(body, response.status)
+    jobs = (body as { jobs: Job[] }).jobs
+  }
+  return jobs
 }
 
 export async function deleteJob(id: string): Promise<void> {

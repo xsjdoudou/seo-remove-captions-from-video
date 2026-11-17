@@ -18,8 +18,7 @@
 import { claimJobs, deleteJob, fetchJobs, type Job } from './api'
 
 const STORAGE_KEY = 'rtfv.history.v1'
-/** 匿名模式下超过这个数量就丢掉最旧的。文件 24 小时就清了，留太多只是废条目。 */
-const MAX_ENTRIES = 12
+const DEFAULT_RECORD_RETENTION_MS = 30 * 24 * 60 * 60 * 1000
 
 export interface HistoryEntry {
   id: string
@@ -28,6 +27,7 @@ export interface HistoryEntry {
   durationSeconds: number | null
   createdAt: number
   expiresAt: number
+  recordExpiresAt?: number
   status: Job['status']
   resultUrl: string | null
   downloadUrl: string | null
@@ -96,8 +96,12 @@ export function loadHistory(): HistoryEntry[] {
   if (serverEntries) return serverEntries
   const raw = readRaw()
   const now = Date.now()
-  const alive = raw.filter((entry) => entry.expiresAt > now)
-  if (alive.length !== raw.length) writeRaw(alive)
+  const alive = raw
+    .filter((entry) => (entry.recordExpiresAt ?? entry.createdAt + DEFAULT_RECORD_RETENTION_MS) > now)
+    .map((entry) => entry.expiresAt <= now && entry.status === 'completed'
+      ? { ...entry, status: 'expired' as const, resultUrl: null, downloadUrl: null }
+      : entry)
+  if (JSON.stringify(alive) !== JSON.stringify(raw)) writeRaw(alive)
   return alive
 }
 
@@ -121,10 +125,9 @@ export function upsertEntry(job: Job): HistoryEntry[] {
   const index = entries.findIndex((item) => item.id === entry.id)
   if (index === -1) entries.unshift(entry)
   else entries[index] = { ...entries[index], ...entry }
-  const trimmed = entries.slice(0, MAX_ENTRIES)
-  writeRaw(trimmed)
-  emit(trimmed)
-  return trimmed
+  writeRaw(entries)
+  emit(entries)
+  return entries
 }
 
 /** 服务端已经不认识这个任务了（过期清理掉了）。 */
@@ -192,6 +195,7 @@ function toEntry(job: Job): HistoryEntry {
     durationSeconds: job.durationSeconds,
     createdAt: job.createdAt,
     expiresAt: job.expiresAt,
+    recordExpiresAt: job.recordExpiresAt,
     status: job.status,
     resultUrl: job.resultUrl,
     downloadUrl: job.downloadUrl,

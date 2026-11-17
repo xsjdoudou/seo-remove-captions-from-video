@@ -591,7 +591,7 @@ function readJob(res, store, id, config, session) {
 /** 当前登录用户的任务，新的在前。匿名访客拿到空列表，不是 401。 */
 function listJobs(res, store, config, session) {
   if (!session) return sendJson(res, 200, { jobs: [], total: 0, signedIn: false })
-  const { jobs, total } = store.listByUser(session.id)
+  const { jobs, total } = store.listByUser(session.id, { limit: Infinity })
   return sendJson(res, 200, { jobs: jobs.map((job) => serializeJob(job, config)), total, signedIn: true })
 }
 
@@ -616,7 +616,7 @@ async function claimJobs(req, res, { config, store, session }) {
   }
 
   const ids = Array.isArray(body?.ids) ? body.ids : []
-  // 一次最多认领一屏的量。前端的本地历史上限本来就只有十几条。
+  // 限制单次请求的认领数量，较长的本地历史由客户端分批提交。
   const claimed = []
   for (const id of ids.slice(0, 50)) {
     if (typeof id !== 'string' || !/^[0-9a-f]{24}$/.test(id)) continue
@@ -627,7 +627,7 @@ async function claimJobs(req, res, { config, store, session }) {
   }
   if (claimed.length > 0) await store.flush()
 
-  const { jobs, total } = store.listByUser(session.id)
+  const { jobs, total } = store.listByUser(session.id, { limit: Infinity })
   return sendJson(res, 200, {
     claimed: claimed.length,
     jobs: jobs.map((job) => serializeJob(job, config)),
@@ -747,7 +747,8 @@ export function serializeJob(job, config) {
     updatedAt: job.updatedAt,
     submittedAt: job.submittedAt ?? null,
     completedAt: job.completedAt ?? null,
-    expiresAt: job.createdAt + (config?.retentionMs ?? DAY_MS),
+    expiresAt: job.createdAt + (config?.retentionMs ?? 30 * DAY_MS),
+    recordExpiresAt: job.createdAt + (config?.recordRetentionMs ?? 30 * DAY_MS),
     resultUrl: downloadable ? `${base}/r/${job.token}.mp4` : null,
     downloadUrl: downloadable ? `${base}/r/${job.token}.mp4?download=1` : null,
     resultBytes: job.resultBytes ?? null,
@@ -908,14 +909,12 @@ function sendJson(res, status, body) {
  * 定期清理。没有这一步，磁盘迟早被塞满。
  *
  * 文件和记录分两个期限：
- *   - 视频文件一律在 RETENTION_MS（默认 24 小时）后删掉，登录与否都一样。
+ *   - 视频文件一律在 RETENTION_MS（默认 30 天）后删掉，登录与否都一样。
  *     存储成本和隐私承诺都压在这条上，它不因为有账号而放宽。
- *   - 任务**记录**（文件名、时长、状态这些元数据）在登录用户名下保留
- *     RECORD_RETENTION_MS（默认 30 天），这样隔几天回来还能看到自己处理过
- *     什么。匿名任务没有归属，记录跟文件一起清掉——留着它既没人能看到，
- *     又平白多存一份 IP 记录。
+ *   - 任务**记录**（文件名、时长、状态这些元数据）一律保留
+ *     RECORD_RETENTION_MS（默认 30 天）。
  */
-async function sweep(config, store) {
+export async function sweep(config, store) {
   const now = Date.now()
   const fileCutoff = now - config.retentionMs
   const recordCutoff = now - config.recordRetentionMs
@@ -932,21 +931,13 @@ async function sweep(config, store) {
       for (const file of [job.sourcePath, job.resultPath]) {
         if (file) await fsp.rm(file, { force: true }).catch(() => {})
       }
-      // 匿名任务到这里就结束了：连记录一起删。
-      if (!job.userId) {
-        store.delete(job.id)
-        recordsRemoved += 1
-        filesRemoved += 1
-        continue
-      }
-      // 登录用户的记录留下，但把文件路径抹掉并打上时间戳——serializeJob
+      // 记录留下，但把文件路径抹掉并打上时间戳——serializeJob
       // 据此把状态报成 expired，前端就不会再给出一个必然 404 的下载链接。
       store.update(job.id, { sourcePath: null, resultPath: null, filesPurgedAt: now })
       filesRemoved += 1
-      continue
     }
 
-    if (job.userId && job.createdAt <= recordCutoff) {
+    if (!busy && job.createdAt <= recordCutoff) {
       store.delete(job.id)
       recordsRemoved += 1
     }

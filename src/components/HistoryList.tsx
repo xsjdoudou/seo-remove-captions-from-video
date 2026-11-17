@@ -63,6 +63,7 @@ export default function HistoryList({ open, onToggle }: { open: boolean; onToggl
   // 而依赖 entries 是必需的：登录之后列表会被整个换成账号里的那份，
   // 里面可能有在另一台设备上提交、此刻还在跑的任务，只跑一次就接不上它们。
   const watched = useRef(new Set<string>())
+  const refreshed = useRef(new Set<string>())
   const abort = useRef<AbortController | null>(null)
   if (abort.current === null) abort.current = new AbortController()
 
@@ -75,8 +76,10 @@ export default function HistoryList({ open, onToggle }: { open: boolean; onToggl
     if (!ready) return
 
     for (const entry of entries) {
-      if (TERMINAL.includes(entry.status)) continue
+      const terminal = TERMINAL.includes(entry.status)
+      if (terminal && refreshed.current.has(entry.id)) continue
       if (watched.current.has(entry.id)) continue
+      if (terminal) refreshed.current.add(entry.id)
       watched.current.add(entry.id)
 
       void (async () => {
@@ -106,8 +109,8 @@ export default function HistoryList({ open, onToggle }: { open: boolean; onToggl
 
   const signedIn = auth.user !== null
   const note = signedIn
-    ? 'Saved to your account — these follow you to any device. Files are deleted 24 hours after upload.'
-    : 'Kept in this browser only. Download what you want to keep.'
+    ? 'Records and videos are saved for 30 days and follow you to any device.'
+    : 'Records are kept in this browser and videos are saved for 30 days.'
 
   return (
     <aside className={`side${open ? '' : ' side--collapsed'}`} aria-label="Your recent videos">

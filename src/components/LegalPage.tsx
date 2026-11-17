@@ -3,12 +3,12 @@ import { CONTACT_EMAIL, SITE_NAME } from '../config'
 /**
  * 隐私政策与服务条款。
  *
- * 写的是这套代码实际在做的事——24 小时清理、不做训练、源文件在成片下载完
- * 就删掉——而不是抄一份通用模板。模板里那些对不上的条款,既帮不了用户,
+ * 写的是这套代码实际在做的事——源文件和成片保留 30 天、不做训练，
+ * 而不是抄一份通用模板。模板里那些对不上的条款,既帮不了用户,
  * 真出事时也帮不了你。改了保留策略记得回来改这一页。
  */
 
-const UPDATED = 'November 14, 2026'
+const UPDATED = 'November 17, 2026'
 const TERMS_UPDATED = 'November 13, 2026'
 
 export function PrivacyPage() {
@@ -84,12 +84,11 @@ export function PrivacyPage() {
 
       <h2>How long files are kept</h2>
       <p>
-        Your original upload is deleted as soon as the processed video has been retrieved — typically within minutes of
-        the job finishing. Both the original and the result are deleted automatically no more than 24 hours after
-        upload, whether or not you downloaded anything. Deletion is permanent;
+        Your original upload and the processed video are kept for 30 days after upload and then deleted automatically,
+        whether or not you downloaded anything. Deletion is permanent;
         we keep no backup copies of user videos.
       </p>
-      <p>You can also delete a job yourself at any time by starting a new one or closing out of the result.</p>
+      <p>Signed-in users can also delete a job from their history.</p>
 
       <h2>Processing</h2>
       <p>

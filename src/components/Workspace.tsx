@@ -82,7 +82,7 @@ export default function Workspace({ mode, onBusyChange }: { mode: EraseMode; onB
             maxUploadBytes: 600 * 1024 * 1024,
             maxDurationSeconds: 900,
             accept: 'video/*',
-            retentionHours: 24,
+            retentionHours: 30 * 24,
             historyDays: 30,
             googleClientId: '',
           })

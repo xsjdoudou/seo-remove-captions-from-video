@@ -116,7 +116,7 @@ export default function HomePage({ onNavigate }: { onNavigate: (to: string) => v
             Same resolution and frame rate. Everything outside the subtitle area is untouched.
           </Card>
           <Card icon={<ShieldIcon className="card__icon" />} title="Your file stays yours">
-            Deleted within 24 hours. Never published, never used for training.
+            Kept for 30 days. Never published, never used for training.
           </Card>
           <Card icon={<LayersIcon className="card__icon" />} title="Nothing to install">
             Runs in the browser. No editor or plugin needed.

@@ -174,9 +174,6 @@ export class Pipeline {
         completedAt: Date.now(),
       })
       console.log(`[pipeline] job ${jobId} completed (${(bytes / 1024 / 1024).toFixed(1)} MB)`)
-      // 成片已经在本地了，源视频没有继续留着的理由——它还挂在一个公网可取的
-      // URL 上，早一点删掉就少一段暴露窗口。
-      await this.#deleteSource(jobId)
     } catch (err) {
       await fsp.rm(target, { force: true }).catch(() => {})
       this.#store.update(jobId, {
@@ -184,13 +181,6 @@ export class Pipeline {
         error: { code: 'download_failed', message: `Could not fetch the processed video: ${err.message}` },
       })
     }
-  }
-
-  async #deleteSource(jobId) {
-    const job = this.#store.get(jobId)
-    if (!job?.sourcePath) return
-    await fsp.rm(job.sourcePath, { force: true }).catch(() => {})
-    this.#store.update(jobId, { sourcePath: null })
   }
 
   /** 可重试的错误退避重试；不可重试的直接抛出去。 */
