@@ -45,7 +45,7 @@ export function PrivacyPage() {
       </ul>
       <p>
         You can browse the site, view the demo and check pricing without signing in. Processing a video requires an
-        account when credit billing is enabled. New accounts receive 15 free credits.
+        account. New accounts receive 15 free credits.
       </p>
 
       <h2>Signing in with Google</h2>
