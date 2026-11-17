@@ -6,6 +6,8 @@ import net from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 import { once } from 'node:events'
+import { createServer } from 'vite'
+import react from '@vitejs/plugin-react'
 
 const nginxAvailable = spawnSync('nginx', ['-v'], { stdio: 'ignore' }).status === 0
 
@@ -27,7 +29,10 @@ test('nginx redirects page trailing slashes without redirect loops', { skip: !ng
   await fsp.mkdir(path.join(dir, 'remove-burned-in-subtitles'))
   await fsp.writeFile(path.join(dir, 'remove-burned-in-subtitles', 'index.html'), 'Burned subtitles')
   await fsp.writeFile(path.join(dir, 'index.html'), 'Home')
-  await fsp.copyFile(new URL('../public/404.html', import.meta.url), path.join(dir, '404.html'))
+  const vite = await createServer({ configFile: false, plugins: [react()], server: { middlewareMode: true, hmr: false } })
+  const { renderNotFound } = await vite.ssrLoadModule('/src/entry-server.tsx')
+  await fsp.writeFile(path.join(dir, '404.html'), renderNotFound('/assets/test.css'))
+  await vite.close()
   const socket = net.createServer()
   socket.listen(0, '127.0.0.1')
   await once(socket, 'listening')
@@ -101,8 +106,13 @@ http {
     response = await fetch(`${base}${url}`, { redirect: 'manual' })
     assert.equal(response.status, 404, url)
     const body = await response.text()
-    assert.match(body, /This page does not exist\./)
+    assert.match(body, /This page doesn(?:&#x27;|&#39;|')t exist/)
     assert.match(body, /href="\/"/)
+    assert.match(body, /<title>Page not found — RemoveTextFromVideo<\/title>/)
+    assert.match(body, /<meta name="robots" content="noindex"/)
+    assert.match(body, /class="shell"/)
+    assert.match(body, /class="navbar"/)
+    assert.match(body, /class="footer"/)
     assert.doesNotMatch(body, /<title>Remove Text from Video/)
   }
   response = await fetch(`${base}/missing-page`, { method: 'HEAD' })

@@ -22,7 +22,7 @@ const PUBLIC = fileURLToPath(new URL('./public', import.meta.url))
  * 和 deploy/nginx.conf.example 里那条 try_files 的行为对齐。
  */
 function prerenderedPages(): Plugin {
-  const middleware = (preview: boolean) => (req: IncomingMessage, res: ServerResponse, next: () => void) => {
+  const middleware = (preview: boolean, renderNotFound?: () => Promise<string>) => (req: IncomingMessage, res: ServerResponse, next: (err?: unknown) => void) => {
     if (req.method !== 'GET' && req.method !== 'HEAD') return next()
     const raw = req.url ?? '/'
     const queryAt = raw.indexOf('?')
@@ -44,15 +44,19 @@ function prerenderedPages(): Plugin {
     const root = preview ? DIST : PUBLIC
     const candidate = path.resolve(root, `.${pathname}`)
     if (candidate.startsWith(root + path.sep) && fs.existsSync(candidate) && fs.statSync(candidate).isFile()) return next()
-    const html = fs.readFileSync(path.join(preview ? DIST : PUBLIC, '404.html'))
     res.statusCode = 404
     res.setHeader('Content-Type', 'text/html; charset=utf-8')
-    res.end(req.method === 'HEAD' ? undefined : html)
+    if (req.method === 'HEAD') return res.end()
+    if (preview) return res.end(fs.readFileSync(path.join(DIST, '404.html')))
+    void renderNotFound!().then((html) => res.end(html)).catch(next)
   }
   return {
     name: 'prerendered-pages',
     configureServer(server) {
-      server.middlewares.use(middleware(false))
+      server.middlewares.use(middleware(false, async () => {
+        const { renderNotFound } = await server.ssrLoadModule('/src/entry-server.tsx')
+        return renderNotFound('/src/styles.css')
+      }))
     },
     configurePreviewServer: async (server) => {
       server.middlewares.use(middleware(true))

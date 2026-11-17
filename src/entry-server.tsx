@@ -13,9 +13,39 @@
 
 import { renderToString } from 'react-dom/server'
 import App from './App'
+import Navbar from './components/Navbar'
+import Footer from './components/Footer'
 
 export function render(route: string): string {
   return renderToString(<App initialRoute={route} />)
+}
+
+export function renderNotFound(stylesheetHref: string): string {
+  const href = stylesheetHref.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')
+  const body = renderToString(
+    <div className="shell">
+      <Navbar route="" onNavigate={() => {}} />
+      <main id="main">
+        <section className="section">
+          <h1>This page doesn&apos;t exist</h1>
+          <a href="/">Return to the home page</a>
+        </section>
+      </main>
+      <Footer onNavigate={() => {}} />
+    </div>,
+  )
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex" />
+  <title>Page not found — RemoveTextFromVideo</title>
+  <link rel="stylesheet" href="${href}" />
+</head>
+<body>${body}</body>
+</html>
+`
 }
 
 export { ROUTES, SITE_URL, SITE_NAME, absoluteUrl } from './config'

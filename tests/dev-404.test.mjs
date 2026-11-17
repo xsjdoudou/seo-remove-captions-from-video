@@ -47,8 +47,10 @@ test('development server returns real 404s without breaking routes or assets', a
     assert.equal(response.status, 404, url)
     if (!url.endsWith('.jpg')) {
       const html = await response.text()
-      assert.match(html, /This page does not exist\./)
+      assert.match(html, /This page doesn(?:&#x27;|&#39;|')t exist/)
       assert.match(html, /href="\/"/)
+      assert.match(html, /<meta name="robots" content="noindex"/)
+      assert.match(html, /class="footer"/)
     }
   }
   response = await fetch(`${base}/api/health`)

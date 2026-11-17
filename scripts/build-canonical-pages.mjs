@@ -27,11 +27,14 @@ if (!fs.existsSync(DIST)) throw new Error('dist/ is missing — run `vite build`
 if (!fs.existsSync(PRERENDER)) throw new Error('.prerender/ is missing — run `vite build --ssr` before this script')
 
 // entry-server 把渲染函数和 SEO 数据一并再导出,这里只认它一个入口。
-const { render, ROUTES, SITE_URL, absoluteUrl, metaFor, siteSchema } = await import(
+const { render, renderNotFound, ROUTES, SITE_URL, absoluteUrl, metaFor, siteSchema } = await import(
   path.join(PRERENDER, 'entry-server.js')
 )
 
 const template = await fsp.readFile(path.join(DIST, 'index.html'), 'utf8')
+const stylesheet = template.match(/<link[^>]+rel="stylesheet"[^>]+href="([^"]+)"/)?.[1]
+if (!stylesheet) throw new Error('prerender: index.html is missing its stylesheet')
+await fsp.writeFile(path.join(DIST, '404.html'), renderNotFound(stylesheet))
 
 for (const route of ROUTES) {
   const meta = metaFor(route)
@@ -104,7 +107,7 @@ function sitemap(routes, toUrl) {
   const entries = routes
     .map((route) => {
       // 首页是入口,优先级最高;法务页给搜索引擎的价值最低。
-      const priority = route === '/' ? '1.0' : ['/how-it-works', '/remove-subtitles-from-video', '/remove-burned-in-subtitles'].includes(route) ? '0.8' : '0.3'
+      const priority = route === '/' ? '1.0' : ['/how-it-works', '/remove-captions-from-video', '/remove-subtitles-from-video', '/remove-burned-in-subtitles'].includes(route) ? '0.8' : '0.3'
       return [
         '  <url>',
         `    <loc>${toUrl(route)}</loc>`,
