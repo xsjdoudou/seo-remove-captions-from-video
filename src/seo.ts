@@ -198,7 +198,7 @@ const META: Record<Route, PageMeta> = {
   '/remove-captions-from-video': {
     title: 'Remove Captions From Video — Erase Burned-In Captions Online',
     description: CAPTIONS_DESCRIPTION,
-    image: `${SITE_URL}/og/remove-captions-from-video.jpg`,
+    image: `${SITE_URL}/demo/auto-after.jpg`,
     schema: [
       {
         '@context': 'https://schema.org',

@@ -16,6 +16,7 @@ test('captions page renders its tool, links, metadata and matching FAQ without a
   assert.equal(meta.title, 'Remove Captions From Video — Erase Burned-In Captions Online')
   assert.ok(meta.title.length <= 60)
   assert.ok(meta.description.length >= 120 && meta.description.length <= 160)
+  assert.equal(meta.image, 'https://removetextfromvideo.io/demo/auto-after.jpg')
   assert.ok(html.includes('<h1 class="hero__title">Remove captions from video</h1>'))
   assert.ok(html.includes('id="tool"'))
   assert.ok(html.includes('href="/remove-subtitles-from-video"'))
