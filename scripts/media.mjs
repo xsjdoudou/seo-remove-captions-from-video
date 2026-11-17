@@ -113,14 +113,15 @@ export async function probeVideo(filePath) {
   }
 }
 
-/** Convert to a 720-pixel short edge; the caller only invokes this for larger videos. */
-export async function transcode720(source, target, maxBytes) {
+/** Scale the short edge while preserving the original aspect ratio. */
+export async function transcodeResolution(source, target, maxBytes, shortEdge) {
+  if (![720, 1080, 1440].includes(shortEdge)) throw new Error('Invalid target resolution')
   const temporary = `${target}.tmp.mp4`
   try {
     await execFileAsync('ffmpeg', [
       '-v', 'error', '-nostdin', '-y', '-protocol_whitelist', 'file,pipe',
       '-i', source, '-map', '0:v:0', '-map', '0:a?',
-      '-vf', "scale='if(gte(iw,ih),-2,720)':'if(gte(iw,ih),720,-2)'",
+      '-vf', `scale='if(gte(iw,ih),-2,${shortEdge})':'if(gte(iw,ih),${shortEdge},-2)'`,
       '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20',
       '-c:a', 'aac', '-movflags', '+faststart', temporary,
     ], { timeout: 30 * 60_000, maxBuffer: 1024 * 64 })

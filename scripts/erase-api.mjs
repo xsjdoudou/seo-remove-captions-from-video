@@ -444,7 +444,7 @@ async function createJob(req, res, { config, store, pipeline, url, session, ledg
   }
   const mode = areas.length > 0 ? 'box' : 'auto'
   const outputResolution = url.searchParams.get('resolution') ?? 'original'
-  if (!['original', '720'].includes(outputResolution)) {
+  if (!['original', '720', '1080', '1440'].includes(outputResolution)) {
     return sendJson(res, 400, { error: { code: 'invalid_resolution', message: 'Invalid output resolution.' } })
   }
   if (ledger && !session) {
@@ -531,7 +531,7 @@ async function createJob(req, res, { config, store, pipeline, url, session, ledg
   // 时长校验放在写盘之后：ffprobe 要有完整文件才量得准。
   const video = await probeVideo(target)
   const duration = video?.duration ?? null
-  if ((ledger || outputResolution === '720') && (!video || !Number.isFinite(duration) || duration <= 0)) {
+  if ((ledger || outputResolution !== 'original') && (!video || !Number.isFinite(duration) || duration <= 0)) {
     await fsp.rm(target, { force: true }).catch(() => {})
     store.delete(job.id)
     return sendJson(res, 400, { error: { code: 'invalid_duration', message: 'Could not determine video duration.' } })
@@ -970,7 +970,7 @@ export async function sweep(config, store) {
   for (const dir of [config.sourceDir, config.resultDir]) {
     const entries = await fsp.readdir(dir).catch(() => [])
     for (const entry of entries) {
-      const token = entry.replace(/(?:\.720(?:\.tmp)?)?\.[^.]+$/, '')
+      const token = entry.replace(/(?:\.(?:720|1080|1440)(?:\.tmp)?)?\.[^.]+$/, '')
       const owner = store.findByToken(token)
       // 记录还在但已经标记清过文件的，它的文件同样是孤儿。
       if (owner && !owner.filesPurgedAt) continue

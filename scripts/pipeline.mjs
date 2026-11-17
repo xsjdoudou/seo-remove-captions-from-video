@@ -13,7 +13,7 @@ import { createWriteStream } from 'node:fs'
 
 import { submitTask, queryTask, SmartEraseError } from './tencent.mjs'
 import { ACTIVE_STATUSES } from './store.mjs'
-import { transcode720 } from './media.mjs'
+import { transcodeResolution } from './media.mjs'
 
 /** 连续多少次可重试的失败之后放弃。5 次 × 退避 ≈ 几分钟，够熬过一般的抖动。 */
 const MAX_RETRYABLE_FAILURES = 5
@@ -94,10 +94,11 @@ export class Pipeline {
     let taskId = job.taskId ?? null
 
     if (!taskId) {
-      if (job.outputResolution === '720' && Math.min(job.videoWidth, job.videoHeight) > 720 && !job.processingSourcePath) {
+      if (['720', '1080', '1440'].includes(job.outputResolution) &&
+          Math.min(job.videoWidth, job.videoHeight) > Number(job.outputResolution) && !job.processingSourcePath) {
         this.#store.update(jobId, { status: 'submitting' })
-        const target = path.join(this.#config.sourceDir, `${job.token}.720.mp4`)
-        await transcode720(job.sourcePath, target, this.#config.maxUploadBytes * 2)
+        const target = path.join(this.#config.sourceDir, `${job.token}.${job.outputResolution}.mp4`)
+        await transcodeResolution(job.sourcePath, target, this.#config.maxUploadBytes * 2, Number(job.outputResolution))
         if (!this.#store.get(jobId)) {
           await fsp.rm(target, { force: true }).catch(() => {})
           return

@@ -116,7 +116,7 @@ export default function Billing() {
           </article>
         ))}
       </div>
-      <p className="billing__note">Duration is rounded up to the next whole second. Original videos above 720p and up to 1080p cost 2× the base rate; above 1080p cost 3×. Resolution is measured by the shorter edge. Choose up to 720p to use the base rate. Plan durations shown are at the 720p base rate. See our <a href="/terms">billing, refund and cancellation terms</a>.</p>
+      <p className="billing__note">Duration is rounded up to the next whole second. Output above 720p and up to 1080p costs 2× the base rate; above 1080p costs 3×. Resolution is measured by the shorter edge. Choose a lower available resolution to reduce the rate. Plan durations shown are at the 720p base rate. See our <a href="/terms">billing, refund and cancellation terms</a>.</p>
       {message && <p role="alert">{message}</p>}
     </section>
   )

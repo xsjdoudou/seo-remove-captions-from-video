@@ -68,7 +68,7 @@ for (const tool of ['ffprobe', 'ffmpeg']) {
     execFile(tool, ['-version'], { timeout: 10_000 }, (err) => {
       if (err) fail(`${tool} not found`, tool === 'ffprobe'
         ? 'video metadata is required for credit billing'
-        : '720p conversion requires ffmpeg with libx264 and AAC encoders')
+        : 'resolution conversion requires ffmpeg with libx264 and AAC encoders')
       else pass(`${tool} is available`)
       resolve()
     })

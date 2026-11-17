@@ -31,7 +31,7 @@ export type EraseMode = 'auto' | 'box'
  * 真实分辨率几乎永远不一样。一路保持比例，到腾讯那边正好是它要的 percent 单位。
  */
 export type Area = [left: number, top: number, right: number, bottom: number]
-export type OutputResolution = 'original' | '720'
+export type OutputResolution = 'original' | '720' | '1080' | '1440'
 
 export interface Job {
   id: string

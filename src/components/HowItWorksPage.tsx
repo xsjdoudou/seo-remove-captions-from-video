@@ -97,7 +97,7 @@ export default function HowItWorksPage({ onNavigate }: { onNavigate: (to: string
         </li>
         <li>
           <strong>Quality is preserved where nothing changed.</strong> Only the masked region is rewritten; you can
-          keep the original resolution or choose up to 720p.
+          keep the original resolution or choose an available lower resolution.
         </li>
       </ul>
 

@@ -4,7 +4,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
-import { probeVideo, transcode720 } from '../scripts/media.mjs'
+import { probeVideo, transcodeResolution } from '../scripts/media.mjs'
 import { JobStore } from '../scripts/store.mjs'
 import { CreditLedger } from '../scripts/credits.mjs'
 import { Pipeline } from '../scripts/pipeline.mjs'
@@ -12,8 +12,8 @@ import { Pipeline } from '../scripts/pipeline.mjs'
 const hasFfmpeg = spawnSync('ffmpeg', ['-version'], { stdio: 'ignore' }).status === 0 &&
   spawnSync('ffprobe', ['-version'], { stdio: 'ignore' }).status === 0
 
-for (const size of ['1282x722', '722x1282']) {
-  test(`720p conversion preserves orientation for ${size}`, { skip: !hasFfmpeg }, async (t) => {
+for (const [size, output] of [['1282x722', 720], ['722x1282', 720], ['1600x1200', 1080], ['1500x1800', 1440]]) {
+  test(`${output}p conversion preserves orientation and aspect ratio for ${size}`, { skip: !hasFfmpeg }, async (t) => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'video-resolution-'))
     t.after(() => fs.rm(dir, { recursive: true, force: true }))
     const source = path.join(dir, 'source.mp4')
@@ -22,9 +22,9 @@ for (const size of ['1282x722', '722x1282']) {
       '-t', '1', '-c:v', 'mpeg4', '-y', source])
     assert.equal(generated.status, 0, generated.stderr?.toString())
     const before = await probeVideo(source)
-    await transcode720(source, target, 20_000_000)
+    await transcodeResolution(source, target, 20_000_000, output)
     const after = await probeVideo(target)
-    assert.equal(Math.min(after.width, after.height), 720)
+    assert.equal(Math.min(after.width, after.height), output)
     assert.equal(before.width > before.height, after.width > after.height)
     assert.ok(Math.abs(before.width / before.height - after.width / after.height) < 0.005)
     assert.ok(after.duration > 0)
@@ -38,7 +38,7 @@ test('a failed conversion removes its temporary output', { skip: !hasFfmpeg }, a
   const source = path.join(dir, 'invalid.mp4')
   const target = path.join(dir, 'target.mp4')
   await fs.writeFile(source, 'not video')
-  await assert.rejects(transcode720(source, target, 20_000_000))
+  await assert.rejects(transcodeResolution(source, target, 20_000_000, 720))
   await assert.rejects(fs.access(`${target}.tmp.mp4`), { code: 'ENOENT' })
 })
 

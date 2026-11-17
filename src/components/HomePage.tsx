@@ -114,7 +114,7 @@ export default function HomePage({ onNavigate }: { onNavigate: (to: string) => v
             Latin, Chinese, Japanese, Korean, Arabic, Cyrillic and Thai — all just pixels to remove.
           </Card>
           <Card icon={<ClockIcon className="card__icon" />} title="Full quality kept">
-            Keep the original resolution or choose up to 720p.
+            Keep the original resolution or choose an available lower resolution.
           </Card>
           <Card icon={<ShieldIcon className="card__icon" />} title="Your file stays yours">
             Kept for 30 days. Never published, never used for training.

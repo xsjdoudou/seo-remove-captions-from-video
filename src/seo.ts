@@ -47,7 +47,7 @@ export const FAQ: { q: string; a: string }[] = [
   },
   {
     q: 'Will the video quality drop?',
-    a: 'Only the area where subtitles were found gets repainted. You can keep the original resolution or choose up to 720p; frame rate is preserved, and the video is re-encoded.',
+    a: 'Only the area where subtitles were found gets repainted. You can keep the original resolution or choose an available lower resolution; the video is re-encoded.',
   },
   {
     q: 'Does it work on subtitles in any language?',

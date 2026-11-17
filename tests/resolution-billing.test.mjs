@@ -12,12 +12,12 @@ import { probeVideo } from '../scripts/media.mjs'
 const hasFfmpeg = spawnSync('ffmpeg', ['-version'], { stdio: 'ignore' }).status === 0 &&
   spawnSync('ffprobe', ['-version'], { stdio: 'ignore' }).status === 0
 
-test('server verifies high-resolution pricing and submits a real 720p source', { skip: !hasFfmpeg }, async (t) => {
+test('server verifies pricing and submits scaled sources at the requested resolution', { skip: !hasFfmpeg }, async (t) => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'resolution-billing-'))
   const fakeClient = path.join(dir, 'client.cjs')
   await fs.writeFile(fakeClient, "console.log(JSON.stringify({task_id:'test-task'}))")
   const videoFile = path.join(dir, 'video.mp4')
-  const ffmpeg = spawnSync('ffmpeg', ['-v', 'error', '-f', 'lavfi', '-i', 'color=size=1282x722:rate=1',
+  const ffmpeg = spawnSync('ffmpeg', ['-v', 'error', '-f', 'lavfi', '-i', 'color=size=1500x1800:rate=1',
     '-t', '1', '-c:v', 'mpeg4', '-y', videoFile])
   assert.equal(ffmpeg.status, 0, ffmpeg.stderr?.toString())
   const defaults = loadConfig()
@@ -53,24 +53,39 @@ test('server verifies high-resolution pricing and submits a real 720p source', {
 
   const mismatch = await upload('resolution=original&expectedCredits=1')
   assert.equal(mismatch.status, 409)
-  assert.equal((await mismatch.json()).error.requiredCredits, 2)
+  assert.equal((await mismatch.json()).error.requiredCredits, 3)
   assert.equal(ledger.ensureAccount(user.id).total, 15)
   const noConfirmation = await upload('resolution=original')
   assert.equal(noConfirmation.status, 409)
   assert.equal(ledger.balance(user.id).total, 15)
 
-  const original = await upload('resolution=original&expectedCredits=2')
+  const original = await upload('resolution=original&expectedCredits=3')
   assert.equal(original.status, 201)
   const originalJob = (await original.json()).job
-  assert.equal(store.get(originalJob.id).creditCost, 2)
+  assert.equal(store.get(originalJob.id).creditCost, 3)
+  const medium = await upload('resolution=1080&expectedCredits=2')
+  assert.equal(medium.status, 201)
+  const mediumJob = (await medium.json()).job
+  assert.equal(store.get(mediumJob.id).creditCost, 2)
+  const high = await upload('resolution=1440&expectedCredits=3')
+  assert.equal(high.status, 201)
+  const highJob = (await high.json()).job
+  assert.equal(store.get(highJob.id).creditCost, 3)
   const scaled = await upload('resolution=720&expectedCredits=1')
   assert.equal(scaled.status, 201)
   const scaledJob = (await scaled.json()).job
   assert.equal(store.get(scaledJob.id).creditCost, 1)
-  assert.equal(ledger.balance(user.id).total, 12)
+  assert.equal(ledger.balance(user.id).total, 6)
 
-  for (let i = 0; i < 250 && !store.get(scaledJob.id).taskId; i++) {
+  for (let i = 0; i < 500 && [scaledJob, mediumJob, highJob].some((item) => !store.get(item.id).taskId); i++) {
     await new Promise((resolve) => setTimeout(resolve, 20))
+  }
+  for (const [item, output] of [[mediumJob, 1080], [highJob, 1440]]) {
+    const converted = store.get(item.id)
+    assert.equal(converted.taskId, 'test-task')
+    const metadata = await probeVideo(converted.processingSourcePath)
+    assert.equal(Math.min(metadata.width, metadata.height), output)
+    assert.ok(Math.abs(metadata.width / metadata.height - 1500 / 1800) < 0.005)
   }
   const job = store.get(scaledJob.id)
   assert.equal(job.taskId, 'test-task')

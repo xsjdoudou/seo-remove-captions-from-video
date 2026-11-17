@@ -21,13 +21,21 @@ before(async () => {
 test('browser estimates match server resolution and mode pricing', () => {
   for (const [width, height] of [[1280, 720], [1920, 1080], [2160, 3840], [720, 1280]]) {
     for (const mode of ['auto', 'box']) {
-      for (const output of ['original', '720']) {
+      for (const output of ['original', '720', '1080', '1440']) {
         const video = { width, height, duration: 10.1 }
         assert.equal(resolution.estimateCredits(video, mode, output),
           creditCost(video.duration, mode, resolutionMultiplier(width, height, output)))
       }
     }
   }
+})
+
+test('resolution choices only include lower short-edge tiers', () => {
+  const options = (width, height) => resolution.resolutionOptions({ width, height, duration: 1 })
+  assert.deepEqual(options(1280, 720), [])
+  assert.deepEqual(options(2560, 1440), ['1080', '720'])
+  assert.deepEqual(options(2160, 3840), ['1440', '1080', '720'])
+  assert.deepEqual(options(1200, 1600), ['1080', '720'])
 })
 
 test('upload sends the chosen resolution, confirmed cost, and box coordinates', async (t) => {
@@ -50,12 +58,12 @@ test('upload sends the chosen resolution, confirmed cost, and box coordinates', 
   }
   t.after(() => { globalThis.XMLHttpRequest = previous })
   const { promise } = api.uploadVideo({ type: 'video/mp4', name: 'test.mp4' }, {
-    areas: [[0.1, 0.2, 0.5, 0.6]], resolution: '720', expectedCredits: 33,
+    areas: [[0.1, 0.2, 0.5, 0.6]], resolution: '1440', expectedCredits: 33,
   })
   await promise
   const url = new URL(request.url, 'https://example.com')
   assert.equal(request.method, 'POST')
-  assert.equal(url.searchParams.get('resolution'), '720')
+  assert.equal(url.searchParams.get('resolution'), '1440')
   assert.equal(url.searchParams.get('expectedCredits'), '33')
   assert.deepEqual(url.searchParams.getAll('area'), ['0.1,0.2,0.5,0.6'])
 })

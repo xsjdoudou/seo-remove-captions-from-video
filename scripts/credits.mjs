@@ -9,9 +9,10 @@ export const BILLING_PLANS = Object.freeze({
 
 export function resolutionMultiplier(width, height, outputResolution = 'original') {
   if (!Number.isSafeInteger(width) || width <= 0 || !Number.isSafeInteger(height) || height <= 0 ||
-      !['original', '720'].includes(outputResolution)) throw new Error('Invalid video resolution')
-  if (outputResolution === '720' || Math.min(width, height) <= 720) return 1
-  return Math.min(width, height) <= 1080 ? 2 : 3
+      !['original', '720', '1080', '1440'].includes(outputResolution)) throw new Error('Invalid video resolution')
+  const shortEdge = Math.min(width, height, outputResolution === 'original' ? Infinity : Number(outputResolution))
+  if (shortEdge <= 720) return 1
+  return shortEdge <= 1080 ? 2 : 3
 }
 
 export function creditCost(durationSeconds, mode, multiplier = 1) {

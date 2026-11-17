@@ -61,12 +61,12 @@ data/             上传、成片、jobs.json、users.json、session-secret（�
 
 需要 Node ≥ 20.19、Python 3（装了 `requests`），以及包含 `ffprobe`、
 `ffmpeg`、libx264 和 AAC 编码器的 FFmpeg。计费需要 ffprobe 检测视频；
-选择最高 720p 时需要 ffmpeg 转码。部署服务器也必须安装这些依赖，例如
+选择较低分辨率时需要 ffmpeg 转码。部署服务器也必须安装这些依赖，例如
 Ubuntu 可运行 `sudo apt install ffmpeg`，并用 `ffmpeg -encoders` 检查编码器。
 
 分辨率计费按视频短边计算：不超过 720 像素为 1 倍，721–1080 为 2 倍，
-超过 1080 为 3 倍。选择最高 720p 会将更高分辨率的视频转码至短边 720，
-按 1 倍计费；Box Select 的 3 倍费用与分辨率倍率相乘。
+超过 1080 为 3 倍。用户可选择低于原视频短边的 720p、1080p 或 1440p，
+转码时保持原画面比例，按输出分辨率计费；Box Select 的 3 倍费用与分辨率倍率相乘。
 
 ```bash
 cp .env.example .env

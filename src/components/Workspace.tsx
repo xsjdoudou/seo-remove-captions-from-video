@@ -13,7 +13,7 @@ import {
 } from '../lib/api'
 import { formatBytes, formatDuration, progressFor, statusLabel } from '../lib/format'
 import { upsertEntry, removeEntry as removeHistoryEntry } from '../lib/history'
-import { estimateCredits, resolutionRate, type VideoInfo } from '../lib/resolution'
+import { estimateCredits, resolutionOptions, resolutionRate, type VideoInfo } from '../lib/resolution'
 import { AlertIcon, CheckIcon, DownloadIcon, UploadIcon } from './icons'
 
 type Phase = 'idle' | 'ready' | 'selecting' | 'uploading' | 'processing' | 'done' | 'error' | 'credits'
@@ -656,10 +656,12 @@ export default function Workspace({ mode, onBusyChange }: { mode: EraseMode; onB
             <input type="radio" name="output-resolution" checked={resolution === 'original'} onChange={() => setResolution('original')} />
             Original{videoInfo && ` (${videoInfo.width} × ${videoInfo.height})`}
           </label>
-          <label>
-            <input type="radio" name="output-resolution" checked={resolution === '720'} onChange={() => setResolution('720')} />
-            Up to 720p
-          </label>
+          {videoInfo && resolutionOptions(videoInfo).map((option) => (
+            <label key={option}>
+              <input type="radio" name="output-resolution" checked={resolution === option} onChange={() => setResolution(option)} />
+              {option}p
+            </label>
+          ))}
           {service?.billingEnabled && (
             <p>{estimatedCredits === null ? 'The server will confirm the cost after upload.'
               : `Estimated ${estimatedCredits.toLocaleString()} credits · ${multiplier}× resolution rate (full-access accounts are exempt)`}</p>
