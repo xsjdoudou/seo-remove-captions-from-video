@@ -28,6 +28,11 @@ export default function Footer({ onNavigate }: { onNavigate: (to: string) => voi
           </NavLink>
           <a href={`mailto:${CONTACT_EMAIL}`}>Contact</a>
         </nav>
+        <nav className="footer__links footer__tools" aria-label="Video Tools" id="video-tools">
+          <span>Video Tools</span>
+          <NavLink href="/remove-captions-from-video" onNavigate={onNavigate}>Remove captions from video</NavLink>
+          <NavLink href="/" onNavigate={onNavigate}>Remove text from video</NavLink>
+        </nav>
       </div>
       <p className="footer__legal">
         © {new Date().getFullYear()} {SITE_NAME}. Only upload videos you own or have permission to edit.

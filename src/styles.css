@@ -1491,6 +1491,34 @@ main {
   text-align: center;
 }
 
+.breadcrumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 14px var(--gutter);
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+.caption-copy {
+  max-width: 820px;
+  margin: 0 auto;
+  color: var(--text-muted);
+}
+
+.caption-copy p + p {
+  margin-top: 1em;
+}
+
+.footer__tools {
+  align-items: center;
+}
+
+.footer__tools span {
+  font-weight: 700;
+}
+
 /* ── 处理前/后样例 ──────────────────────────────────────────────────── */
 
 /*

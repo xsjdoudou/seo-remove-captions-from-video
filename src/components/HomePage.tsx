@@ -1,11 +1,8 @@
 import { useState } from 'react'
-import Workspace from './Workspace'
-import HistoryList from './HistoryList'
-import ModePicker from './ModePicker'
+import VideoStudio from './VideoStudio'
 import DemoCompare from './DemoCompare'
 import { NavLink } from './Navbar'
 import { FAQ, siteSchema, metaFor } from '../seo'
-import type { EraseMode } from '../lib/api'
 import { ClockIcon, GlobeIcon, LayersIcon, ShieldIcon, SparkIcon } from './icons'
 import { useEffect } from 'react'
 import { fetchServiceConfig } from '../lib/api'
@@ -18,34 +15,6 @@ import { fetchServiceConfig } from '../lib/api'
  * 立刻能用的东西——所以两者都给,顺序上让人优先。
  */
 export default function HomePage({ onNavigate }: { onNavigate: (to: string) => void }) {
-  /*
-   * 侧栏收起与否。
-   *
-   * 状态放在这里而不是 HistoryList 里：HomePage 是 .studio 这个网格的拥有者，
-   * 开合要落在它的一个子节点上。网格本身不跟着变——左右两列永远各占
-   * --side-w，中间那列因此是视口的正中，开合历史只是在右列里显示或隐藏那张
-   * 卡片，hero 和画布一个像素都不动。
-   *
-   * 默认展开：既然收起也省不出地方给画布（列宽是固定的），那块位置空着不如
-   * 把面板摆在那儿——回头客一进来就看见上次的成片还在，不用先发现那条
-   * 把手、再想到可以点它。第一次来的人看到的是一块写着"还没有视频"的空面板，
-   * 这本身也说清楚了这里会留东西。嫌占地方点一下就收。
-   *
-   * 不记进 localStorage：预渲染出来的 HTML 是展开的，从存储里读状态会让
-   * 页面在 hydrate 之后当着用户的面跳一下。
-   */
-  const [historyOpen, setHistoryOpen] = useState(true)
-
-  /*
-   * 去字幕的方式。
-   *
-   * 状态在这里是因为它横跨两个组件：左边那列负责选，中间的画布负责用。
-   * 放进 Workspace 的话,选择器就只能长在画布上方,而画布上方正是
-   * 第一屏最金贵的那几十像素。
-   */
-  const [mode, setMode] = useState<EraseMode>('auto')
-  /** 有任务在跑时不让切模式：切了也改不了已经提交出去的那个任务。 */
-  const [busy, setBusy] = useState(false)
   const [billingEnabled, setBillingEnabled] = useState<boolean | null>(null)
   useEffect(() => {
     void fetchServiceConfig().then((config) => setBillingEnabled(Boolean(config.billingEnabled))).catch(() => {})
@@ -61,7 +30,7 @@ export default function HomePage({ onNavigate }: { onNavigate: (to: string) => v
         跨两行只有它俩在同一个容器里才做得到。
         hero 因此也落在中间那列——它和画布共用同一条中轴，标题不会比画布宽出去。
       */}
-      <div className="studio">
+      <VideoStudio>
         <section className="hero">
           <div className="hero__inner">
             <h1 className="hero__title">Remove text and subtitles from video</h1>
@@ -77,10 +46,7 @@ export default function HomePage({ onNavigate }: { onNavigate: (to: string) => v
           </div>
         </section>
 
-        <ModePicker mode={mode} onChange={setMode} disabled={busy} />
-        <Workspace mode={mode} onBusyChange={setBusy} />
-        <HistoryList open={historyOpen} onToggle={() => setHistoryOpen((value) => !value)} />
-      </div>
+      </VideoStudio>
       {/*
         样例紧挨着工具放：从拖放框往下滚一眼就看到"去完长这样"。
         放到页面更下面去的话，它就只有已经被文案说服的人才看得见，

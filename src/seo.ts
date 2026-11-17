@@ -12,9 +12,35 @@ import { SITE_NAME, SITE_URL, absoluteUrl, type Route } from './config'
 export interface PageMeta {
   title: string
   description: string
+  image?: string
   /** 页面级 JSON-LD。站点级的 WebSite/SoftwareApplication 在 siteSchema 里。 */
   schema?: Record<string, unknown>[]
 }
+
+export const CAPTIONS_FAQ: { q: string; a: string }[] = [
+  {
+    q: 'Can I remove auto-generated captions from a TikTok or Reels export?',
+    a: 'Yes, if the captions are visible in the exported picture, the tool can attempt to erase them. Results depend on the background and caption placement, so preview the processed clip before sharing it.',
+  },
+  {
+    q: 'Can it handle captions that pop up or appear word by word?',
+    a: 'The automatic mode examines frames as the text changes, including words that appear one at a time. Fast animations, unusual placements, or busy backgrounds can be harder to reconstruct cleanly.',
+  },
+  {
+    q: 'Will a separate subtitle track remain after processing?',
+    a: 'Do not rely on a separate subtitle track being preserved in the output MP4. Keep the original file and its subtitle track, and add the track back in your video editor if you need it.',
+  },
+  {
+    q: 'Will removing captions reduce video quality?',
+    a: 'The output is re-encoded, so some quality change is possible even when you keep the original resolution. You can choose a lower available resolution to use fewer credits; inspect the reconstructed area for artifacts.',
+  },
+  {
+    q: 'Do I need to install software or create an account?',
+    a: 'There is no editor or plugin to install. Sign in with Google or email to remove captions from video; new accounts receive 15 free credits.',
+  },
+]
+
+const CAPTIONS_DESCRIPTION = 'Remove captions from video with AI. Burned-in captions are pixels; rebuild the background without blur or cropping. Free to try.'
 
 export const FAQ: { q: string; a: string }[] = [
   {
@@ -119,6 +145,31 @@ const META: Record<Route, PageMeta> = {
     title: `Terms of Service | ${SITE_NAME}`,
     description: `The terms that apply when you use ${SITE_NAME} to remove text from your videos.`,
   },
+  '/remove-captions-from-video': {
+    title: 'Remove Captions From Video — Erase Burned-In Captions Online',
+    description: CAPTIONS_DESCRIPTION,
+    image: `${SITE_URL}/og/remove-captions-from-video.jpg`,
+    schema: [
+      {
+        '@context': 'https://schema.org',
+        '@type': 'BreadcrumbList',
+        itemListElement: [
+          { '@type': 'ListItem', position: 1, name: 'Home', item: SITE_URL },
+          { '@type': 'ListItem', position: 2, name: 'Video tools', item: `${SITE_URL}/#video-tools` },
+          { '@type': 'ListItem', position: 3, name: 'Remove captions from video', item: absoluteUrl('/remove-captions-from-video') },
+        ],
+      },
+      {
+        '@context': 'https://schema.org',
+        '@type': 'FAQPage',
+        mainEntity: CAPTIONS_FAQ.map((item) => ({
+          '@type': 'Question',
+          name: item.q,
+          acceptedAnswer: { '@type': 'Answer', text: item.a },
+        })),
+      },
+    ],
+  },
 }
 
 export function metaFor(route: Route): PageMeta {
@@ -126,7 +177,7 @@ export function metaFor(route: Route): PageMeta {
 }
 
 /** 站点级结构化数据，每个页面都带上。 */
-export function siteSchema(): Record<string, unknown>[] {
+export function siteSchema(route: Route = '/'): Record<string, unknown>[] {
   return [
     {
       '@context': 'https://schema.org',
@@ -140,8 +191,8 @@ export function siteSchema(): Record<string, unknown>[] {
       name: SITE_NAME,
       applicationCategory: 'MultimediaApplication',
       operatingSystem: 'Any (web-based)',
-      url: SITE_URL,
-      description:
+      url: route === '/remove-captions-from-video' ? absoluteUrl(route) : SITE_URL,
+      description: route === '/remove-captions-from-video' ? CAPTIONS_DESCRIPTION :
         'Online AI tool that removes hardcoded subtitles and burned-in captions from video by reconstructing the background behind them.',
       offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
     },
@@ -164,6 +215,24 @@ export function applyMeta(route: Route): void {
   setTag('meta[property="og:title"]', 'content', meta.title)
   setTag('meta[property="og:description"]', 'content', meta.description)
   setTag('meta[property="og:url"]', 'content', absoluteUrl(route))
+  const existingImage = document.head.querySelector('meta[property="og:image"]')
+  if (meta.image) {
+    const image = existingImage ?? document.createElement('meta')
+    image.setAttribute('property', 'og:image')
+    image.setAttribute('content', meta.image)
+    if (!existingImage) document.head.appendChild(image)
+  } else {
+    existingImage?.remove()
+  }
+  document.head.querySelectorAll('script[type="application/ld+json"]').forEach((script) => script.remove())
+  if (route !== '/') {
+    for (const block of [...siteSchema(route), ...(meta.schema ?? [])]) {
+      const script = document.createElement('script')
+      script.type = 'application/ld+json'
+      script.textContent = JSON.stringify(block)
+      document.head.appendChild(script)
+    }
+  }
 }
 
 function setTag(selector: string, attribute: string, value: string): void {

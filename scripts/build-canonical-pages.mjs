@@ -36,7 +36,7 @@ const template = await fsp.readFile(path.join(DIST, 'index.html'), 'utf8')
 for (const route of ROUTES) {
   const meta = metaFor(route)
   const canonical = absoluteUrl(route)
-  const schema = [...siteSchema(), ...(meta.schema ?? [])]
+  const schema = [...siteSchema(route), ...(meta.schema ?? [])]
 
   let html = template
   html = replaceTag(html, /<title>[\s\S]*?<\/title>/, `<title>${escapeHtml(meta.title)}</title>`)
@@ -45,6 +45,9 @@ for (const route of ROUTES) {
   html = replaceAttr(html, 'meta[og:title]', /(<meta\s+property="og:title"\s+content=")[\s\S]*?(")/, meta.title)
   html = replaceAttr(html, 'meta[og:description]', /(<meta\s+property="og:description"\s+content=")[\s\S]*?(")/, meta.description)
   html = replaceAttr(html, 'meta[og:url]', /(<meta\s+property="og:url"\s+content=")[\s\S]*?(")/, canonical)
+  if (meta.image) {
+    html = html.replace('</head>', `  <meta property="og:image" content="${escapeAttr(meta.image)}" />\n  </head>`)
+  }
 
   // JSON-LD。首页的那几块由 HomePage 组件自己渲染出来了,别重复插一遍。
   if (route !== '/') {

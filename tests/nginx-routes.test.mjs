@@ -13,13 +13,15 @@ test('nginx redirects page trailing slashes without redirect loops', { skip: !ng
   const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'nginx-routes-'))
   t.after(() => fsp.rm(dir, { recursive: true, force: true }))
   const source = await fsp.readFile(new URL('../deploy/nginx.conf.example', import.meta.url), 'utf8')
-  const redirect = source.match(/location ~ \^\/\(how-it-works\|pricing\|privacy\|terms\)\/\$ \{[^}]*\}/)?.[0]
+  const redirect = source.match(/location ~ \^\/\(how-it-works\|pricing\|privacy\|terms\|remove-captions-from-video\)\/\$ \{[^}]*\}/)?.[0]
   const staticLocation = source.match(/location \/ \{[^}]*\}/)?.[0]
   assert.ok(redirect)
   assert.ok(staticLocation)
 
   await fsp.mkdir(path.join(dir, 'how-it-works'))
   await fsp.writeFile(path.join(dir, 'how-it-works', 'index.html'), 'How it works')
+  await fsp.mkdir(path.join(dir, 'remove-captions-from-video'))
+  await fsp.writeFile(path.join(dir, 'remove-captions-from-video', 'index.html'), 'Captions')
   await fsp.writeFile(path.join(dir, 'index.html'), 'Home')
   const socket = net.createServer()
   socket.listen(0, '127.0.0.1')
@@ -64,6 +66,13 @@ http {
   response = await fetch(`${base}/how-it-works`, { redirect: 'manual' })
   assert.equal(response.status, 200)
   assert.equal(await response.text(), 'How it works')
+  response = await fetch(`${base}/remove-captions-from-video/?source=test`, { redirect: 'manual' })
+  assert.equal(response.status, 301)
+  assert.equal(new URL(response.headers.get('location'), base).pathname, '/remove-captions-from-video')
+  assert.equal(new URL(response.headers.get('location'), base).search, '?source=test')
+  response = await fetch(`${base}/remove-captions-from-video`, { redirect: 'manual' })
+  assert.equal(response.status, 200)
+  assert.equal(await response.text(), 'Captions')
   response = await fetch(`${base}/`, { redirect: 'manual' })
   assert.equal(response.status, 200)
   assert.equal(await response.text(), 'Home')

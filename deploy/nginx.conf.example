@@ -144,7 +144,7 @@ server {
     }
 
     # 页面规范地址不带尾斜杠，查询参数保持不变。
-    location ~ ^/(how-it-works|pricing|privacy|terms)/$ {
+    location ~ ^/(how-it-works|pricing|privacy|terms|remove-captions-from-video)/$ {
         return 301 /$1$is_args$args;
     }
 
