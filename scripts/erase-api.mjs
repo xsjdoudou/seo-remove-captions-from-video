@@ -18,7 +18,7 @@ import { createWriteStream } from 'node:fs'
 import { loadConfig, describeConfig } from './config.mjs'
 import { JobStore, UserStore, ACTIVE_STATUSES } from './store.mjs'
 import { Pipeline } from './pipeline.mjs'
-import { CreditLedger, creditCost } from './credits.mjs'
+import { CreditLedger, creditCost, resolutionMultiplier } from './credits.mjs'
 import { applyTestWebhook, createTestCheckout, createTestPortal, verifyTestWebhook } from './waffo.mjs'
 import {
   AuthError,
@@ -34,7 +34,7 @@ import {
   hashPassword,
   verifyPassword,
 } from './auth.mjs'
-import { sanitizeFilename, videoExtension, contentTypeFor, probeDurationSeconds, ACCEPT_ATTRIBUTE } from './media.mjs'
+import { sanitizeFilename, videoExtension, contentTypeFor, probeVideo, ACCEPT_ATTRIBUTE } from './media.mjs'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const SWEEP_INTERVAL_MS = 10 * 60 * 1000
@@ -443,6 +443,10 @@ async function createJob(req, res, { config, store, pipeline, url, session, ledg
     return sendJson(res, 400, { error: { code: 'bad_area', message: err.message } })
   }
   const mode = areas.length > 0 ? 'box' : 'auto'
+  const outputResolution = url.searchParams.get('resolution') ?? 'original'
+  if (!['original', '720'].includes(outputResolution)) {
+    return sendJson(res, 400, { error: { code: 'invalid_resolution', message: 'Invalid output resolution.' } })
+  }
   if (ledger && !session) {
     return sendJson(res, 401, { error: { code: 'not_signed_in', message: 'Sign in to process a video.' } })
   }
@@ -528,8 +532,9 @@ async function createJob(req, res, { config, store, pipeline, url, session, ledg
   }
 
   // 时长校验放在写盘之后：ffprobe 要有完整文件才量得准。
-  const duration = await probeDurationSeconds(target)
-  if (ledger && (!Number.isFinite(duration) || duration <= 0)) {
+  const video = await probeVideo(target)
+  const duration = video?.duration ?? null
+  if ((ledger || outputResolution === '720') && (!video || !Number.isFinite(duration) || duration <= 0)) {
     await fsp.rm(target, { force: true }).catch(() => {})
     store.delete(job.id)
     return sendJson(res, 400, { error: { code: 'invalid_duration', message: 'Could not determine video duration.' } })
@@ -546,12 +551,24 @@ async function createJob(req, res, { config, store, pipeline, url, session, ledg
   }
 
   const billable = Boolean(ledger && !fullAccess)
+  const multiplier = video ? resolutionMultiplier(video.width, video.height, outputResolution) : 1
+  const requiredCredits = billable ? creditCost(duration, mode, multiplier) : null
+  const expected = url.searchParams.get('expectedCredits')
+  if (billable && (expected === null || !/^\d+$/.test(expected) || Number(expected) !== requiredCredits)) {
+    await fsp.rm(target, { force: true }).catch(() => {})
+    store.delete(job.id)
+    return sendJson(res, 409, { error: {
+      code: 'price_changed',
+      message: `The verified cost is ${requiredCredits} credits. Please review the price and try again.`,
+      requiredCredits,
+    } })
+  }
   store.update(job.id, { status: 'queued', bytes: received, sourcePath: target, durationSeconds: duration,
-    billable, creditCost: billable ? creditCost(duration, mode) : null })
+    videoWidth: video?.width ?? null, videoHeight: video?.height ?? null, outputResolution,
+    resolutionMultiplier: multiplier, billable, creditCost: requiredCredits })
   await store.flush()
   if (billable) {
     ledger.ensureAccount(session.id)
-    const requiredCredits = creditCost(duration, mode)
     const reservation = ledger.reserve(session.id, job.id, requiredCredits)
     if (reservation !== 'reserved') {
       const insufficient = reservation === 'insufficient'
@@ -653,7 +670,7 @@ async function removeJob(res, store, id, session, ledger, settleJob) {
     const reservation = ledger.pendingReservations().find((item) => item.job_id === job.id)
     if (reservation) await settleJob(job.id)
   }
-  for (const file of [job.sourcePath, job.resultPath]) {
+  for (const file of [job.sourcePath, job.processingSourcePath, job.resultPath]) {
     if (file) await fsp.rm(file, { force: true }).catch(() => {})
   }
   store.delete(id)
@@ -663,7 +680,7 @@ async function removeJob(res, store, id, session, ledger, settleJob) {
 
 async function serveJobFile(req, res, store, kind, token, url) {
   const job = store.findByToken(token)
-  const filePath = kind === 's' ? job?.sourcePath : job?.resultPath
+  const filePath = kind === 's' ? (job?.processingSourcePath ?? job?.sourcePath) : job?.resultPath
   if (!job || !filePath) {
     res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' })
     res.end('Not found')
@@ -679,7 +696,7 @@ async function serveJobFile(req, res, store, kind, token, url) {
     return undefined
   }
 
-  const ext = kind === 's' ? job.extension : '.mp4'
+  const ext = kind === 's' ? (job.processingSourcePath ? '.mp4' : job.extension) : '.mp4'
   const headers = {
     'content-type': contentTypeFor(ext),
     'accept-ranges': 'bytes',
@@ -937,12 +954,12 @@ export async function sweep(config, store) {
     const busy = ACTIVE_STATUSES.includes(job.status) && job.updatedAt > fileCutoff
 
     if (stale && !busy && !job.filesPurgedAt) {
-      for (const file of [job.sourcePath, job.resultPath]) {
+      for (const file of [job.sourcePath, job.processingSourcePath, job.resultPath]) {
         if (file) await fsp.rm(file, { force: true }).catch(() => {})
       }
       // 记录留下，但把文件路径抹掉并打上时间戳——serializeJob
       // 据此把状态报成 expired，前端就不会再给出一个必然 404 的下载链接。
-      store.update(job.id, { sourcePath: null, resultPath: null, filesPurgedAt: now })
+      store.update(job.id, { sourcePath: null, processingSourcePath: null, resultPath: null, filesPurgedAt: now })
       filesRemoved += 1
     }
 
@@ -956,7 +973,7 @@ export async function sweep(config, store) {
   for (const dir of [config.sourceDir, config.resultDir]) {
     const entries = await fsp.readdir(dir).catch(() => [])
     for (const entry of entries) {
-      const token = entry.replace(/\.[^.]+$/, '')
+      const token = entry.replace(/(?:\.720(?:\.tmp)?)?\.[^.]+$/, '')
       const owner = store.findByToken(token)
       // 记录还在但已经标记清过文件的，它的文件同样是孤儿。
       if (owner && !owner.filesPurgedAt) continue

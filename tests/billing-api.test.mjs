@@ -56,7 +56,7 @@ test('billing requires login and grants each account credits only once', async (
     '-t', '16', '-c:v', 'mpeg4', '-y', videoFile])
   if (ffmpeg.error?.code !== 'ENOENT') {
     assert.equal(ffmpeg.status, 0, ffmpeg.stderr?.toString())
-    const upload = await fetch(base + '/api/jobs', {
+    const upload = await fetch(base + '/api/jobs?expectedCredits=16', {
       method: 'POST', headers: { cookie, 'content-type': 'video/mp4', 'x-filename': 'test.mp4' },
       body: await fs.readFile(videoFile),
     })

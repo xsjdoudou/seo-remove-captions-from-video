@@ -89,7 +89,7 @@ export default function Billing() {
           <p><button className="btn btn--ghost btn--sm" type="button" disabled={busy} onClick={() => void openPortal()}>Manage subscription</button></p>
         )}
       </div>
-      <p className="billing__rate">Auto: 1 credit / second <span aria-hidden="true">·</span> Box select: 3 credits / second</p>
+      <p className="billing__rate">Base rates at up to 720p: Auto 1 credit / second <span aria-hidden="true">·</span> Box select 3 credits / second</p>
       <div className="billing__plans">
         {plans.map((plan) => (
           <article className="billing__plan" key={plan.name}>
@@ -116,7 +116,7 @@ export default function Billing() {
           </article>
         ))}
       </div>
-      <p className="billing__note">Video duration is rounded up to the next whole second. Auto and Box select share the same credit balance. See our <a href="/terms">billing, refund and cancellation terms</a>.</p>
+      <p className="billing__note">Duration is rounded up to the next whole second. Original videos above 720p and up to 1080p cost 2× the base rate; above 1080p cost 3×. Resolution is measured by the shorter edge. Choose up to 720p to use the base rate. Plan durations shown are at the 720p base rate. See our <a href="/terms">billing, refund and cancellation terms</a>.</p>
       {message && <p role="alert">{message}</p>}
     </section>
   )

@@ -7,11 +7,19 @@ export const BILLING_PLANS = Object.freeze({
   business: Object.freeze({ productId: 'PROD_0cZxODveJbiE505HfjeIob', credits: 12000, price: '39.90' }),
 })
 
-export function creditCost(durationSeconds, mode) {
-  if (!Number.isFinite(durationSeconds) || durationSeconds <= 0 || !['auto', 'box'].includes(mode)) {
+export function resolutionMultiplier(width, height, outputResolution = 'original') {
+  if (!Number.isSafeInteger(width) || width <= 0 || !Number.isSafeInteger(height) || height <= 0 ||
+      !['original', '720'].includes(outputResolution)) throw new Error('Invalid video resolution')
+  if (outputResolution === '720' || Math.min(width, height) <= 720) return 1
+  return Math.min(width, height) <= 1080 ? 2 : 3
+}
+
+export function creditCost(durationSeconds, mode, multiplier = 1) {
+  if (!Number.isFinite(durationSeconds) || durationSeconds <= 0 || !['auto', 'box'].includes(mode) ||
+      ![1, 2, 3].includes(multiplier)) {
     throw new Error('Invalid credit cost input')
   }
-  return Math.ceil(durationSeconds) * (mode === 'box' ? 3 : 1)
+  return Math.ceil(durationSeconds) * (mode === 'box' ? 3 : 1) * multiplier
 }
 
 function identifier(value) {

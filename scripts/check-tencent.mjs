@@ -5,7 +5,7 @@
 //
 // 依次检查：
 //   1. 配置是否齐全（密钥、桶、公网地址）
-//   2. ffprobe 在不在（不在的话时长限制会失效）
+//   2. ffprobe 和 ffmpeg 在不在
 //   3. SOURCE_PUBLIC_BASE 是不是真的从公网能取到本机的文件
 //   4. 腾讯云的凭证是否有效
 //
@@ -62,14 +62,18 @@ if (config.sourcePublicBase) {
   fail('SOURCE_PUBLIC_BASE is empty', 'without it the backend cannot hand Tencent a URL it can fetch')
 }
 
-// 2. ffprobe
-await new Promise((resolve) => {
-  execFile('ffprobe', ['-version'], { timeout: 10_000 }, (err) => {
-    if (err) warn('ffprobe not found', 'duration limits will be skipped; install ffmpeg to enforce MAX_DURATION_SECONDS')
-    else pass('ffprobe is available')
-    resolve()
+// 2. 媒体工具
+for (const tool of ['ffprobe', 'ffmpeg']) {
+  await new Promise((resolve) => {
+    execFile(tool, ['-version'], { timeout: 10_000 }, (err) => {
+      if (err) fail(`${tool} not found`, tool === 'ffprobe'
+        ? 'video metadata is required for credit billing'
+        : '720p conversion requires ffmpeg with libx264 and AAC encoders')
+      else pass(`${tool} is available`)
+      resolve()
+    })
   })
-})
+}
 
 // 3. 公网可达性：往 sources 目录丢一个探针文件，然后从公网地址取回来。
 if (config.sourcePublicBase) {

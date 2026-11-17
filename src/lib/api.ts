@@ -31,6 +31,7 @@ export type EraseMode = 'auto' | 'box'
  * 真实分辨率几乎永远不一样。一路保持比例，到腾讯那边正好是它要的 percent 单位。
  */
 export type Area = [left: number, top: number, right: number, bottom: number]
+export type OutputResolution = 'original' | '720'
 
 export interface Job {
   id: string
@@ -188,10 +189,12 @@ export async function deleteJob(id: string): Promise<void> {
  */
 export function uploadVideo(
   file: File,
-  handlers: { onProgress?: (fraction: number) => void; areas?: Area[] } = {},
+  handlers: { onProgress?: (fraction: number) => void; areas?: Area[]; resolution?: OutputResolution; expectedCredits?: number } = {},
 ): { promise: Promise<Job>; abort: () => void } {
   const query = new URLSearchParams()
   for (const area of handlers.areas ?? []) query.append('area', area.join(','))
+  if (handlers.resolution) query.set('resolution', handlers.resolution)
+  if (handlers.expectedCredits !== undefined) query.set('expectedCredits', String(handlers.expectedCredits))
   const url = query.size > 0 ? `/api/jobs?${query}` : '/api/jobs'
 
   const xhr = new XMLHttpRequest()

@@ -3,7 +3,20 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { CreditLedger, creditCost } from '../scripts/credits.mjs'
+import { CreditLedger, creditCost, resolutionMultiplier } from '../scripts/credits.mjs'
+
+test('resolution tiers use the short edge and multiply the selected mode', () => {
+  assert.equal(resolutionMultiplier(1280, 720), 1)
+  assert.equal(resolutionMultiplier(720, 1280), 1)
+  assert.equal(resolutionMultiplier(1920, 1080), 2)
+  assert.equal(resolutionMultiplier(1080, 1920), 2)
+  assert.equal(resolutionMultiplier(3840, 2160), 3)
+  assert.equal(resolutionMultiplier(3840, 2160, '720'), 1)
+  assert.equal(creditCost(10.1, 'auto', 2), 22)
+  assert.equal(creditCost(10.1, 'box', 3), 99)
+  assert.throws(() => resolutionMultiplier(0, 720))
+  assert.throws(() => creditCost(1, 'auto', 0))
+})
 
 test('credit costs round video duration up and charge three times for box mode', () => {
   assert.equal(creditCost(100.1, 'auto'), 101)

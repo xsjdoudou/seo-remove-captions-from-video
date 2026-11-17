@@ -59,8 +59,14 @@ data/             上传、成片、jobs.json、users.json、session-secret（�
 
 ## 本地开发
 
-需要 Node ≥ 20.19、Python 3（装了 `requests`），ffmpeg 可选但建议装
-（没有 ffprobe 的话时长限制会失效）。
+需要 Node ≥ 20.19、Python 3（装了 `requests`），以及包含 `ffprobe`、
+`ffmpeg`、libx264 和 AAC 编码器的 FFmpeg。计费需要 ffprobe 检测视频；
+选择最高 720p 时需要 ffmpeg 转码。部署服务器也必须安装这些依赖，例如
+Ubuntu 可运行 `sudo apt install ffmpeg`，并用 `ffmpeg -encoders` 检查编码器。
+
+分辨率计费按视频短边计算：不超过 720 像素为 1 倍，721–1080 为 2 倍，
+超过 1080 为 3 倍。选择最高 720p 会将更高分辨率的视频转码至短边 720，
+按 1 倍计费；Box Select 的 3 倍费用与分辨率倍率相乘。
 
 ```bash
 cp .env.example .env
@@ -77,7 +83,7 @@ dev 模式下后端是作为中间件挂在 vite 里的，只需要起一个进�
 
 ```bash
 npm test                # 单元测试，不花钱、不联网
-npm run check:tencent   # 自检：凭证、ffprobe、公网可达性
+npm run check:tencent   # 自检：凭证、FFmpeg、公网可达性
 npm run build           # tsc + vite build + 预渲染 + sitemap
 npm run preview         # 用构建产物跑一遍，顺带验证预渲染结果
 ```

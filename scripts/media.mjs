@@ -4,8 +4,11 @@
 // 以及别把用户给的文件名直接当路径用。
 
 import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
+import fsp from 'node:fs/promises'
 import path from 'node:path'
 
+const execFileAsync = promisify(execFile)
 // 腾讯云 MPS 接受的容器格式里，挑了浏览器也能直接 <video> 播放/常见的那些。
 // 键是扩展名，值是回给浏览器的 Content-Type。
 export const ALLOWED_EXTENSIONS = Object.freeze({
@@ -89,4 +92,43 @@ export function probeDurationSeconds(filePath) {
       },
     )
   })
+}
+
+/** Probe the first video stream and container duration without trusting client metadata. */
+export async function probeVideo(filePath) {
+  try {
+    const { stdout } = await execFileAsync('ffprobe', [
+      '-v', 'error', '-select_streams', 'v:0',
+      '-show_entries', 'stream=width,height:format=duration',
+      '-of', 'json', '-protocol_whitelist', 'file', '-i', filePath,
+    ], { timeout: 20_000, maxBuffer: 1024 * 64 })
+    const data = JSON.parse(stdout)
+    const width = Number(data.streams?.[0]?.width)
+    const height = Number(data.streams?.[0]?.height)
+    const duration = Number(data.format?.duration)
+    if (!Number.isSafeInteger(width) || width <= 0 || !Number.isSafeInteger(height) || height <= 0) return null
+    return { width, height, duration: Number.isFinite(duration) && duration > 0 ? duration : null }
+  } catch {
+    return null
+  }
+}
+
+/** Convert to a 720-pixel short edge; the caller only invokes this for larger videos. */
+export async function transcode720(source, target, maxBytes) {
+  const temporary = `${target}.tmp.mp4`
+  try {
+    await execFileAsync('ffmpeg', [
+      '-v', 'error', '-nostdin', '-y', '-protocol_whitelist', 'file,pipe',
+      '-i', source, '-map', '0:v:0', '-map', '0:a?',
+      '-vf', "scale='if(gte(iw,ih),-2,720)':'if(gte(iw,ih),720,-2)'",
+      '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20',
+      '-c:a', 'aac', '-movflags', '+faststart', temporary,
+    ], { timeout: 30 * 60_000, maxBuffer: 1024 * 64 })
+    const stat = await fsp.stat(temporary)
+    if (stat.size === 0 || stat.size > maxBytes) throw new Error('Converted video is empty or exceeds the size limit')
+    await fsp.rename(temporary, target)
+  } catch (err) {
+    await fsp.rm(temporary, { force: true }).catch(() => {})
+    throw err
+  }
 }

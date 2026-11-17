@@ -8,10 +8,12 @@ import {
   type Area,
   type EraseMode,
   type Job,
+  type OutputResolution,
   type ServiceConfig,
 } from '../lib/api'
 import { formatBytes, formatDuration, progressFor, statusLabel } from '../lib/format'
 import { upsertEntry, removeEntry as removeHistoryEntry } from '../lib/history'
+import { estimateCredits, resolutionRate, type VideoInfo } from '../lib/resolution'
 import { AlertIcon, CheckIcon, DownloadIcon, UploadIcon } from './icons'
 
 type Phase = 'idle' | 'ready' | 'selecting' | 'uploading' | 'processing' | 'done' | 'error' | 'credits'
@@ -45,7 +47,7 @@ export default function Workspace({ mode, onBusyChange }: { mode: EraseMode; onB
   const [uploadFraction, setUploadFraction] = useState(0)
   const [job, setJob] = useState<Job | null>(null)
   const [message, setMessage] = useState<string | null>(null)
-  const [creditNotice, setCreditNotice] = useState<{ required?: number; available?: number; file: File; boxes: Area[] } | null>(null)
+  const [creditNotice, setCreditNotice] = useState<{ required?: number; available?: number; file: File; boxes: Area[]; priceChanged?: boolean } | null>(null)
   const [dragging, setDragging] = useState(false)
   /** 本地源视频的 object URL。成片出来之后用它做"处理前"的对照。 */
   const [sourceUrl, setSourceUrl] = useState<string | null>(null)
@@ -60,6 +62,8 @@ export default function Workspace({ mode, onBusyChange }: { mode: EraseMode; onB
   const [frame, setFrame] = useState<{ left: number; top: number; width: number; height: number } | null>(null)
   const [duration, setDuration] = useState(0)
   const [time, setTime] = useState(0)
+  const [videoInfo, setVideoInfo] = useState<VideoInfo | null>(null)
+  const [resolution, setResolution] = useState<OutputResolution>('original')
 
   const inputRef = useRef<HTMLInputElement>(null)
   const abortRef = useRef<(() => void) | null>(null)
@@ -128,6 +132,8 @@ export default function Workspace({ mode, onBusyChange }: { mode: EraseMode; onB
     setFrame(null)
     setDuration(0)
     setTime(0)
+    setVideoInfo(null)
+    setResolution('original')
     if (inputRef.current) inputRef.current.value = ''
   }, [])
 
@@ -137,13 +143,16 @@ export default function Workspace({ mode, onBusyChange }: { mode: EraseMode; onB
    * 和选文件分开，用户确认之后才开始上传。
    */
   const startUpload = useCallback(
-    async (file: File, boxes: Area[]) => {
+    async (file: File, boxes: Area[], confirmedCredits?: number) => {
       setPhase('uploading')
       setMessage(null)
       setCreditNotice(null)
       setUploadFraction(0)
 
-      const { promise, abort } = uploadVideo(file, { onProgress: setUploadFraction, areas: boxes })
+      const estimate = videoInfo ? estimateCredits(videoInfo, boxes.length ? 'box' : 'auto', resolution) : undefined
+      const { promise, abort } = uploadVideo(file, {
+        onProgress: setUploadFraction, areas: boxes, resolution, expectedCredits: confirmedCredits ?? estimate,
+      })
       abortRef.current = abort
 
       let created: Job
@@ -156,9 +165,9 @@ export default function Workspace({ mode, onBusyChange }: { mode: EraseMode; onB
           reset()
           return
         }
-        if (err instanceof ApiError && err.code === 'insufficient_credits') {
+        if (err instanceof ApiError && (err.code === 'insufficient_credits' || err.code === 'price_changed')) {
           setPhase('credits')
-          setCreditNotice({ required: err.requiredCredits, available: err.availableCredits, file, boxes })
+          setCreditNotice({ required: err.requiredCredits, available: err.availableCredits, file, boxes, priceChanged: err.code === 'price_changed' })
           return
         }
         setPhase('error')
@@ -200,7 +209,7 @@ export default function Workspace({ mode, onBusyChange }: { mode: EraseMode; onB
         pollAbortRef.current = null
       }
     },
-    [reset],
+    [reset, resolution, videoInfo],
   )
 
   /**
@@ -225,6 +234,8 @@ export default function Workspace({ mode, onBusyChange }: { mode: EraseMode; onB
       setAreas([])
       setDraft(null)
       setFrame(null)
+      setVideoInfo(null)
+      setResolution('original')
 
       setPending(file)
       setPhase(mode === 'box' ? 'selecting' : 'ready')
@@ -286,6 +297,13 @@ export default function Workspace({ mode, onBusyChange }: { mode: EraseMode; onB
   const limits = service
     ? `${formatBytes(service.maxUploadBytes)} max · up to ${formatDuration(service.maxDurationSeconds)}`
     : ''
+  const multiplier = videoInfo ? resolutionRate(videoInfo, resolution) : null
+  const estimatedCredits = videoInfo ? estimateCredits(videoInfo, mode, resolution) : null
+  const readVideoInfo = useCallback((video: HTMLVideoElement) => {
+    if (video.videoWidth && video.videoHeight && Number.isFinite(video.duration) && video.duration > 0) {
+      setVideoInfo({ width: video.videoWidth, height: video.videoHeight, duration: video.duration })
+    }
+  }, [])
 
   // ── 框选 ────────────────────────────────────────────────────────────
 
@@ -464,7 +482,8 @@ export default function Workspace({ mode, onBusyChange }: { mode: EraseMode; onB
 
       {phase === 'ready' && sourceUrl && (
         <div className="stage">
-          <video className="stage__video" src={sourceUrl} controls playsInline preload="metadata" />
+          <video className="stage__video" src={sourceUrl} controls playsInline preload="metadata"
+            onLoadedMetadata={(event) => readVideoInfo(event.currentTarget)} />
         </div>
       )}
 
@@ -483,6 +502,7 @@ export default function Workspace({ mode, onBusyChange }: { mode: EraseMode; onB
             preload="metadata"
             onLoadedMetadata={(event) => {
               setDuration(event.currentTarget.duration || 0)
+              readVideoInfo(event.currentTarget)
               measure()
             }}
             onSeeked={(event) => setTime(event.currentTarget.currentTime)}
@@ -629,6 +649,24 @@ export default function Workspace({ mode, onBusyChange }: { mode: EraseMode; onB
         </div>
       )}
 
+      {(phase === 'ready' || phase === 'selecting') && (
+        <fieldset className="resolution-picker">
+          <legend>Output resolution</legend>
+          <label>
+            <input type="radio" name="output-resolution" checked={resolution === 'original'} onChange={() => setResolution('original')} />
+            Original{videoInfo && ` (${videoInfo.width} × ${videoInfo.height})`}
+          </label>
+          <label>
+            <input type="radio" name="output-resolution" checked={resolution === '720'} onChange={() => setResolution('720')} />
+            Up to 720p
+          </label>
+          {service?.billingEnabled && (
+            <p>{estimatedCredits === null ? 'The server will confirm the cost after upload.'
+              : `Estimated ${estimatedCredits.toLocaleString()} credits · ${multiplier}× resolution rate (full-access accounts are exempt)`}</p>
+          )}
+        </fieldset>
+      )}
+
       {/* 画布下面这条操作栏：画布里只放视频，按钮和说明一律在外面，
           这样它们不会压在画面上，也不会随状态在画布里跳来跳去。 */}
       <div className="toolbar">
@@ -682,8 +720,8 @@ export default function Workspace({ mode, onBusyChange }: { mode: EraseMode; onB
           {phase === 'credits' && creditNotice && (
             <>
               <button type="button" className="btn btn--ghost btn--sm" onClick={reset}>Choose another video</button>
-              <button type="button" className="btn btn--primary btn--sm" onClick={() => void startUpload(creditNotice.file, creditNotice.boxes)}>
-                Try again
+              <button type="button" className="btn btn--primary btn--sm" onClick={() => void startUpload(creditNotice.file, creditNotice.boxes, creditNotice.priceChanged ? creditNotice.required : undefined)}>
+                {creditNotice.priceChanged ? 'Confirm and retry' : 'Try again'}
               </button>
             </>
           )}
@@ -706,13 +744,15 @@ export default function Workspace({ mode, onBusyChange }: { mode: EraseMode; onB
       </div>
       {creditNotice && (
         <p className="workspace__credit-notice" role="alert">
-          {creditNotice.required !== undefined
+          {creditNotice.priceChanged && creditNotice.required !== undefined
+            ? <>The server verified a cost of {creditNotice.required.toLocaleString()} credits. Confirm to continue.</>
+            : creditNotice.required !== undefined
             ? <>This video requires {creditNotice.required.toLocaleString()} credits
               {creditNotice.available !== undefined && <>; you have {creditNotice.available.toLocaleString()}</>}.
               {creditNotice.available !== undefined && creditNotice.required > creditNotice.available &&
                 <> You need {(creditNotice.required - creditNotice.available).toLocaleString()} more.</>}</>
             : <>You need more credits to process this video.</>}
-          {' '}<a href="/pricing" target="_blank" rel="noopener noreferrer">View pricing to get credits</a>
+          {!creditNotice.priceChanged && <> <a href="/pricing" target="_blank" rel="noopener noreferrer">View pricing to get credits</a></>}
         </p>
       )}
     </section>

@@ -13,6 +13,7 @@ import { createWriteStream } from 'node:fs'
 
 import { submitTask, queryTask, SmartEraseError } from './tencent.mjs'
 import { ACTIVE_STATUSES } from './store.mjs'
+import { transcode720 } from './media.mjs'
 
 /** 连续多少次可重试的失败之后放弃。5 次 × 退避 ≈ 几分钟，够熬过一般的抖动。 */
 const MAX_RETRYABLE_FAILURES = 5
@@ -90,14 +91,25 @@ export class Pipeline {
     const job = this.#store.get(jobId)
     if (!job) return
 
-    const deadline = (job.submittedAt ?? Date.now()) + this.#config.jobTimeoutMs
     let taskId = job.taskId ?? null
 
     if (!taskId) {
+      if (job.outputResolution === '720' && Math.min(job.videoWidth, job.videoHeight) > 720 && !job.processingSourcePath) {
+        this.#store.update(jobId, { status: 'submitting' })
+        const target = path.join(this.#config.sourceDir, `${job.token}.720.mp4`)
+        await transcode720(job.sourcePath, target, this.#config.maxUploadBytes * 2)
+        if (!this.#store.get(jobId)) {
+          await fsp.rm(target, { force: true }).catch(() => {})
+          return
+        }
+        this.#store.update(jobId, { processingSourcePath: target })
+        await this.#store.flush()
+      }
       taskId = await this.#submit(jobId)
       if (!taskId) return
     }
 
+    const deadline = (this.#store.get(jobId)?.submittedAt ?? Date.now()) + this.#config.jobTimeoutMs
     const output = await this.#poll(jobId, taskId, deadline)
     if (!output) return
 
@@ -210,7 +222,7 @@ export class Pipeline {
   sourceUrlFor(job) {
     const base = this.#config.sourcePublicBase
     if (!base) return null
-    return `${base}/s/${job.token}${job.extension}`
+    return `${base}/s/${job.token}${job.processingSourcePath ? '.mp4' : job.extension}`
   }
 }
 
