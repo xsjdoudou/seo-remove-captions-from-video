@@ -14,6 +14,7 @@ const plans = [
 export default function Billing() {
   const [auth, setAuth] = useState(getAuthState)
   const [balance, setBalance] = useState<Balance | null>(null)
+  const [fullAccess, setFullAccess] = useState(false)
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
   const [billingEnabled, setBillingEnabled] = useState<boolean | null>(null)
@@ -35,11 +36,11 @@ export default function Billing() {
   }, [])
   useEffect(() => {
     let active = true
-    if (!auth.user || !billingEnabled) { setBalance(null); return }
+    if (!auth.user || !billingEnabled) { setBalance(null); setFullAccess(false); return }
     fetch('/api/billing/account').then(async (response) => {
       if (!response.ok) throw new Error('Could not load your balance.')
-      return response.json() as Promise<{ balance: Balance }>
-    }).then((data) => { if (active) setBalance(data.balance) })
+      return response.json() as Promise<{ balance: Balance; fullAccess?: boolean }>
+    }).then((data) => { if (active) { setBalance(data.balance); setFullAccess(data.fullAccess === true) } })
       .catch(() => { if (active) setMessage('Could not load your balance.') })
     return () => { active = false }
   }, [auth.user, billingEnabled])
@@ -81,7 +82,7 @@ export default function Billing() {
         <div>
           <h1>Pricing</h1>
           <p>Choose a one-time package or a monthly plan for your video projects.</p>
-          {billingEnabled && <p>{auth.user ? (balance ? `${balance.total} credits available` : 'Loading balance...') : 'Sign in to receive 15 free credits.'}</p>}
+          {billingEnabled && <p>{auth.user ? (fullAccess ? 'Full access enabled.' : balance ? `${balance.total} credits available` : 'Loading balance...') : 'Sign in to receive 15 free credits.'}</p>}
         </div>
         {billingEnabled && testMode && <span className="billing__badge">Test mode</span>}
         {subscriptionsEnabled && balance?.plan && (

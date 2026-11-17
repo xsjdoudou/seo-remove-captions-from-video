@@ -55,6 +55,7 @@ export default function Workspace({ mode, onBusyChange }: { mode: EraseMode; onB
   const [pending, setPending] = useState<File | null>(null)
   const [areas, setAreas] = useState<Area[]>([])
   const [draft, setDraft] = useState<Draft | null>(null)
+  const drawingRef = useRef<{ pointerId: number; draft: Draft } | null>(null)
   /** 画面在画布里实际占的那块矩形（contain 之后两边会留黑边）。 */
   const [frame, setFrame] = useState<{ left: number; top: number; width: number; height: number } | null>(null)
   const [duration, setDuration] = useState(0)
@@ -123,6 +124,7 @@ export default function Workspace({ mode, onBusyChange }: { mode: EraseMode; onB
     setPending(null)
     setAreas([])
     setDraft(null)
+    drawingRef.current = null
     setFrame(null)
     setDuration(0)
     setTime(0)
@@ -298,11 +300,17 @@ export default function Workspace({ mode, onBusyChange }: { mode: EraseMode; onB
     const stage = stageRef.current
     const video = pickRef.current
     if (!stage || !video || !video.videoWidth || !video.videoHeight) return
-    const box = stage.getBoundingClientRect()
+    const stageBox = stage.getBoundingClientRect()
+    const box = video.getBoundingClientRect()
     const scale = Math.min(box.width / video.videoWidth, box.height / video.videoHeight)
     const width = video.videoWidth * scale
     const height = video.videoHeight * scale
-    setFrame({ left: (box.width - width) / 2, top: (box.height - height) / 2, width, height })
+    setFrame({
+      left: box.left - stageBox.left - stage.clientLeft + (box.width - width) / 2,
+      top: box.top - stageBox.top - stage.clientTop + (box.height - height) / 2,
+      width,
+      height,
+    })
   }, [])
 
   // 画布宽度跟着视口和侧栏开合变，量过一次就不管的话，框会和画面错位。
@@ -350,36 +358,50 @@ export default function Workspace({ mode, onBusyChange }: { mode: EraseMode; onB
   const onDrawStart = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
       if (areas.length >= MAX_AREAS) return
+      if (drawingRef.current) return
       // 只认主键（鼠标左键 / 手指 / 笔尖）。右键拖出来一个框之后菜单还会弹出来。
       if (event.button !== 0) return
       event.currentTarget.setPointerCapture(event.pointerId)
       const { x, y } = pointFrom(event)
-      setDraft({ x0: x, y0: y, x1: x, y1: y })
+      const next = { x0: x, y0: y, x1: x, y1: y }
+      drawingRef.current = { pointerId: event.pointerId, draft: next }
+      setDraft(next)
     },
     [areas.length, pointFrom],
   )
 
   const onDrawMove = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
-      if (!draft) return
+      const drawing = drawingRef.current
+      if (!drawing || drawing.pointerId !== event.pointerId) return
       const { x, y } = pointFrom(event)
-      setDraft((current) => (current ? { ...current, x1: x, y1: y } : current))
+      drawing.draft = { ...drawing.draft, x1: x, y1: y }
+      setDraft(drawing.draft)
     },
-    [draft, pointFrom],
+    [pointFrom],
   )
 
   const onDrawEnd = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
-      if (!draft) return
-      event.currentTarget.releasePointerCapture?.(event.pointerId)
-      const area = toArea(draft)
+      const drawing = drawingRef.current
+      if (!drawing || drawing.pointerId !== event.pointerId) return
+      const { x, y } = pointFrom(event)
+      drawingRef.current = null
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
+      const area = toArea({ ...drawing.draft, x1: x, y1: y })
       setDraft(null)
       // 点一下而不是拖一下也会走到这里，那不是一个框。
       if (!area) return
       setAreas((current) => (current.length >= MAX_AREAS ? current : [...current, area]))
     },
-    [draft],
+    [pointFrom],
   )
+
+  const onDrawCancel = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    if (drawingRef.current?.pointerId !== event.pointerId) return
+    drawingRef.current = null
+    setDraft(null)
+  }, [])
 
   const removeArea = useCallback((index: number) => {
     setAreas((current) => current.filter((_, i) => i !== index))
@@ -473,7 +495,8 @@ export default function Workspace({ mode, onBusyChange }: { mode: EraseMode; onB
               onPointerDown={onDrawStart}
               onPointerMove={onDrawMove}
               onPointerUp={onDrawEnd}
-              onPointerCancel={onDrawEnd}
+              onPointerCancel={onDrawCancel}
+              onLostPointerCapture={onDrawCancel}
               role="application"
               aria-label="Drag to draw a box over the text you want erased"
             >

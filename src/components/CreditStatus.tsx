@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { fetchServiceConfig } from '../lib/api'
 import { getAuthState, subscribeAuth } from '../lib/auth'
 
-type CreditState = 'loading' | 'disabled' | 'signed-out' | 'unavailable' | number
+type CreditState = 'loading' | 'disabled' | 'full-access' | 'signed-out' | 'unavailable' | number
 
 export default function CreditStatus({ onNavigate }: { onNavigate: (to: string) => void }) {
   const [auth, setAuth] = useState(getAuthState)
@@ -24,7 +24,11 @@ export default function CreditStatus({ onNavigate }: { onNavigate: (to: string) 
         if (!auth.user) { setCredits('signed-out'); return }
         const response = await fetch('/api/billing/account', { headers: { accept: 'application/json' }, cache: 'no-store' })
         if (!response.ok) throw new Error('Balance unavailable')
-        const data = await response.json() as { balance?: { total?: unknown } }
+        const data = await response.json() as { fullAccess?: boolean; balance?: { total?: unknown } }
+        if (data.fullAccess === true) {
+          if (active && current === request) setCredits('full-access')
+          return
+        }
         if (!Number.isSafeInteger(data.balance?.total) || (data.balance?.total as number) < 0) throw new Error('Invalid balance')
         if (active && current === request) setCredits(data.balance?.total as number)
       } catch {
@@ -50,10 +54,12 @@ export default function CreditStatus({ onNavigate }: { onNavigate: (to: string) 
   if (credits === 'loading') return null
   const label = typeof credits === 'number' ? `${credits.toLocaleString()} credits`
     : credits === 'disabled' ? 'Free processing'
+    : credits === 'full-access' ? 'Full access'
     : credits === 'signed-out' ? 'Sign in for credits'
     : 'Credits unavailable'
   const title = credits === 'disabled'
     ? 'Billing is currently disabled. Processing does not use credits.'
+    : credits === 'full-access' ? 'Full access is enabled for this account.'
     : credits === 'unavailable' ? 'Could not load credit information.'
     : 'View pricing'
 

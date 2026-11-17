@@ -142,7 +142,10 @@ export async function createHandler(config = loadConfig()) {
       if (route === '/api/billing/account' && req.method === 'GET') {
         if (!ledger) return sendJson(res, 503, { error: { code: 'not_configured', message: 'Billing is not available.' } })
         if (!session) return sendJson(res, 401, { error: { code: 'not_signed_in', message: 'Sign in first.' } })
-        return sendJson(res, 200, { balance: ledger.ensureAccount(session.id) })
+        return sendJson(res, 200, {
+          balance: ledger.ensureAccount(session.id),
+          fullAccess: hasFullAccess(config, session.id),
+        })
       }
       if (route === '/api/billing/checkout' && req.method === 'POST') {
         if (!ledger) return sendJson(res, 503, { error: { code: 'not_configured', message: 'Billing is not available.' } })
@@ -443,7 +446,8 @@ async function createJob(req, res, { config, store, pipeline, url, session, ledg
   if (ledger && !session) {
     return sendJson(res, 401, { error: { code: 'not_signed_in', message: 'Sign in to process a video.' } })
   }
-  if (ledger && mode === 'box' && !['pro', 'business'].includes(ledger.ensureAccount(session.id).plan)) {
+  const fullAccess = hasFullAccess(config, session?.id)
+  if (ledger && !fullAccess && mode === 'box' && !['pro', 'business'].includes(ledger.ensureAccount(session.id).plan)) {
     return sendJson(res, 403, { error: { code: 'plan_required', message: 'Manual area selection requires Pro or Business.' } })
   }
   if (ledger) ledger.ensureAccount(session.id)
@@ -541,10 +545,11 @@ async function createJob(req, res, { config, store, pipeline, url, session, ledg
     })
   }
 
+  const billable = Boolean(ledger && !fullAccess)
   store.update(job.id, { status: 'queued', bytes: received, sourcePath: target, durationSeconds: duration,
-    billable: Boolean(ledger), creditCost: ledger ? creditCost(duration, mode) : null })
+    billable, creditCost: billable ? creditCost(duration, mode) : null })
   await store.flush()
-  if (ledger) {
+  if (billable) {
     ledger.ensureAccount(session.id)
     const requiredCredits = creditCost(duration, mode)
     const reservation = ledger.reserve(session.id, job.id, requiredCredits)
@@ -792,7 +797,7 @@ export function parseAreas(raw) {
     }
     // 统一到小数点后四位：对 4K 来说也还有半个像素的精度，
     // 而原始的浮点尾巴会让同一个框每次提交的参数都不一样。
-    return [left, top, right, bottom].map((n) => Math.round(n * 10000) / 10000)
+    return [left, top, right, bottom].map((n) => Math.min(0.9999, Math.round(n * 10000) / 10000))
   })
 }
 
@@ -803,6 +808,10 @@ export function parseAreas(raw) {
  * 运营商 NAT 后面的人共用一个出口 IP，按 IP 算等于让他们互相挤占额度。
  * 额度本身两边一样——登录只是让它算得更准，不是更宽。
  */
+function hasFullAccess(config, userId) {
+  return Boolean(userId && config.fullAccessUsers?.includes(userId))
+}
+
 export function checkRateLimit({ store, pipeline, config, ip, userId }) {
   const owner = userId ? { field: 'userId', value: userId } : { field: 'ip', value: ip }
   if (pipeline.activeCountForOwner(owner) >= config.rateLimitConcurrent) {
@@ -811,7 +820,7 @@ export function checkRateLimit({ store, pipeline, config, ip, userId }) {
       message: `You already have ${config.rateLimitConcurrent} video(s) processing. Please wait for them to finish.`,
     }
   }
-  if (userId && config.rateLimitDailyExemptUsers?.includes(userId)) return null
+  if (hasFullAccess(config, userId) || (userId && config.rateLimitDailyExemptUsers?.includes(userId))) return null
   const since = Date.now() - DAY_MS
   const today = store.list().filter((job) => job[owner.field] === owner.value && job.createdAt >= since).length
   if (today >= config.rateLimitDaily) {

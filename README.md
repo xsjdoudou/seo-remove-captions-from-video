@@ -161,6 +161,9 @@ curl -s https://removetextfromvideo.io/api/config    # googleClientId 应该有�
 
 ### 几个容易踩的点
 
+- **全功能白名单与每日次数白名单不同。** `FULL_ACCESS_USERS` 填精确的登录用户 ID，
+  多个 ID 用英文逗号分隔。名单内账号可使用框选、处理不扣积分且不受每日次数限制；
+  并发、文件大小和时长限制仍然有效。`RATE_LIMIT_DAILY_EXEMPT_USERS` 只豁免每日次数。
 - **nginx 的 `client_max_body_size` 要 ≥ `MAX_UPLOAD_BYTES`**，否则用户传到一半
   收到的是 nginx 自己那个没有样式的 413 页面。
 - **`proxy_request_buffering off`**，否则 nginx 会先把整个请求体落盘再转发，

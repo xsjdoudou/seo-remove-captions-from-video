@@ -186,6 +186,7 @@ test('parseAreas keeps fractions and rounds off the floating point tail', () => 
   assert.deepEqual(parseAreas(['0.1,0.75,0.9,0.95']), [[0.1, 0.75, 0.9, 0.95]])
   // 浏览器量出来的比例尾巴很长，不收口的话同一个框每次提交的参数都不一样。
   assert.deepEqual(parseAreas(['0.100004999,0.2,0.3,0.4']), [[0.1, 0.2, 0.3, 0.4]])
+  assert.deepEqual(parseAreas(['0.1,0.2,0.99999,0.99999']), [[0.1, 0.2, 0.9999, 0.9999]])
   assert.equal(parseAreas(['0,0.1,0.5,0.6', '0.5,0.1,0.9,0.6']).length, 2)
 })
 

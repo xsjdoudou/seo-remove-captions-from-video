@@ -42,6 +42,8 @@ test('billing requires login and grants each account credits only once', async (
   })
   const cookie = register.headers.get('set-cookie').split(';')[0]
   const userId = (await register.json()).user.id
+  config.rateLimitDailyExemptUsers = [userId]
+  config.fullAccessUsers = []
   for (let i = 0; i < 2; i++) {
     const response = await fetch(base + '/api/billing/account', { headers: { cookie } })
     assert.equal((await response.json()).balance.total, 15)
@@ -63,6 +65,41 @@ test('billing requires login and grants each account credits only once', async (
     assert.equal(error.code, 'insufficient_credits')
     assert.equal(error.requiredCredits, 16)
     assert.equal(error.availableCredits, 15)
+
+    const fakeClient = path.join(dir, 'region.cjs')
+    await fs.writeFile(fakeClient, "console.log(JSON.stringify({task_id:'test-task'}))")
+    Object.assign(config.tencent, {
+      python: process.execPath, regionScript: fakeClient, bucket: 'test', region: 'test',
+      mpsRegion: 'test', secretId: 'test', secretKey: 'test',
+    })
+    config.pollIntervalMs = 60 * 60 * 1000
+    config.fullAccessUsers = [userId]
+    const otherRegister = await fetch(base + '/api/auth/register', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: 'other@example.com', password: 'password123', confirmPassword: 'password123' }),
+    })
+    const otherCookie = otherRegister.headers.get('set-cookie').split(';')[0]
+    const otherManual = await fetch(base + '/api/jobs?area=0,0,0.5,0.5', {
+      method: 'POST', headers: { cookie: otherCookie },
+    })
+    assert.equal(otherManual.status, 403)
+    assert.equal((await otherManual.json()).error.code, 'plan_required')
+    const fullAccount = await fetch(base + '/api/billing/account', { headers: { cookie } })
+    assert.equal((await fullAccount.json()).fullAccess, true)
+    const fullUpload = await fetch(base + '/api/jobs?area=0,0,0.5,0.5', {
+      method: 'POST', headers: { cookie, 'content-type': 'video/mp4', 'x-filename': 'test.mp4' },
+      body: await fs.readFile(videoFile),
+    })
+    assert.equal(fullUpload.status, 201)
+    const fullJob = (await fullUpload.json()).job
+    assert.equal(fullJob.mode, 'box')
+    assert.equal(store.get(fullJob.id).billable, false)
+    assert.equal(ledger.balance(userId).total, 15)
+    assert.equal(ledger.pendingReservations().length, 0)
+    for (let i = 0; i < 100 && !store.get(fullJob.id).taskId; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 20))
+    }
+    assert.equal(store.get(fullJob.id).taskId, 'test-task')
   }
   ledger.createCheckout('order_test', userId, 'onetime')
   const raw = JSON.stringify({ id: 'event1', eventId: 'payment1', timestamp: new Date().toISOString(),
