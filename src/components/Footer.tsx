@@ -32,6 +32,8 @@ export default function Footer({ onNavigate }: { onNavigate: (to: string) => voi
           <span>Video Tools</span>
           <NavLink href="/remove-captions-from-video" onNavigate={onNavigate}>Remove captions from video</NavLink>
           <NavLink href="/" onNavigate={onNavigate}>Remove text from video</NavLink>
+          <NavLink href="/remove-subtitles-from-video" onNavigate={onNavigate}>Remove subtitles from video</NavLink>
+          <NavLink href="/remove-burned-in-subtitles" onNavigate={onNavigate}>Remove burned-in subtitles</NavLink>
         </nav>
       </div>
       <p className="footer__legal">

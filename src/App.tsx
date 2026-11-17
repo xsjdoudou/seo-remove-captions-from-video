@@ -8,6 +8,8 @@ import Navbar from './components/Navbar'
 import Footer from './components/Footer'
 import HomePage from './components/HomePage'
 import CaptionsPage from './components/CaptionsPage'
+import SubtitlesPage from './components/SubtitlesPage'
+import BurnedSubtitlesPage from './components/BurnedSubtitlesPage'
 import HowItWorksPage from './components/HowItWorksPage'
 import Billing from './components/Billing'
 import { PrivacyPage, TermsPage } from './components/LegalPage'
@@ -90,6 +92,8 @@ export default function App({ initialRoute = '/' }: { initialRoute?: string }) {
       <main id="main">
         {route === '/' && <HomePage onNavigate={navigate} />}
         {route === '/remove-captions-from-video' && <CaptionsPage onNavigate={navigate} />}
+        {route === '/remove-subtitles-from-video' && <SubtitlesPage onNavigate={navigate} />}
+        {route === '/remove-burned-in-subtitles' && <BurnedSubtitlesPage onNavigate={navigate} />}
         {route === '/how-it-works' && <HowItWorksPage onNavigate={navigate} />}
         {route === '/pricing' && <Billing />}
         {route === '/privacy' && <PrivacyPage />}

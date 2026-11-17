@@ -42,6 +42,56 @@ export const CAPTIONS_FAQ: { q: string; a: string }[] = [
 
 const CAPTIONS_DESCRIPTION = 'Remove captions from video with AI. Burned-in captions are pixels; rebuild the background without blur or cropping. Free to try.'
 
+export const SUBTITLES_FAQ: { q: string; a: string }[] = [
+  {
+    q: 'How can I tell whether the subtitles are part of the picture?',
+    a: 'Turn subtitles off in your player or inspect the tracks in your editing project. If the words remain visible when every subtitle track is disabled, they are probably embedded in the image.',
+  },
+  {
+    q: 'Can I erase subtitles for only part of a video?',
+    a: 'The tool does not offer a time-range control for removal. To restrict the edit, split the video in an editor, process only the relevant segment, and join the clips afterward.',
+  },
+  {
+    q: 'Will the original subtitle track remain in the result?',
+    a: 'Separate tracks are not guaranteed to be included in the exported MP4. Keep your source and any separate subtitle files so you can add the tracks back if needed.',
+  },
+  {
+    q: 'Does this work with other languages, vertical clips, or moving words?',
+    a: 'The detector can work with different scripts and portrait footage, and it examines changing text across frames. Results vary with motion, placement, contrast, and background detail, so check the output carefully.',
+  },
+  {
+    q: 'Do I need an account, and what can I try for free?',
+    a: 'Sign in with Google or email to remove subtitles from video; a new account receives 15 free credits. Processing uses credits based on duration, mode, and output resolution, and no software installation is required.',
+  },
+]
+
+const SUBTITLES_DESCRIPTION = 'Remove subtitles from video when they are burned into the picture. AI rebuilds the background without blur or cropping. Free to try.'
+
+export const BURNED_SUBTITLES_FAQ: { q: string; a: string }[] = [
+  {
+    q: 'Do burned-in and hardcoded mean the same thing?',
+    a: 'In this context both describe words rendered into the video image. They are not a selectable text layer, even if another track is also present.',
+  },
+  {
+    q: 'How can I tell whether the words are a separate stream?',
+    a: 'Disable the text option in your player and inspect the available tracks or your editing timeline. If the same words remain in the picture, that version is embedded; a video can contain both types.',
+  },
+  {
+    q: 'Will every trace of the text disappear?',
+    a: 'Not always. Fine patterns, moving objects, and complex edges can leave artifacts because the hidden pixels must be estimated; preview the result before using it.',
+  },
+  {
+    q: 'Will a separate track survive, and does processing affect quality?',
+    a: 'The exported MP4 is not guaranteed to retain separate tracks, so keep the source and any text files. Re-encoding can change quality or frame rate even when you keep the original resolution.',
+  },
+  {
+    q: 'Which formats can I use, and do I need an account?',
+    a: 'The tool accepts MP4, MOV, M4V, WebM, MKV, AVI, FLV, WMV, and TS; the output is MP4. Sign in with Google or email to process a clip, and new accounts receive 15 free credits.',
+  },
+]
+
+const BURNED_SUBTITLES_DESCRIPTION = 'Burned-in subtitles and hardcoded subtitles are pixels. AI rebuilds the background frame by frame without blur or cropping. Free to try.'
+
 export const FAQ: { q: string; a: string }[] = [
   {
     q: 'Can you remove hardcoded subtitles that are burned into the video?',
@@ -170,6 +220,56 @@ const META: Record<Route, PageMeta> = {
       },
     ],
   },
+  '/remove-subtitles-from-video': {
+    title: 'Remove Subtitles From Video — Erase Hardcoded Subs Online',
+    description: SUBTITLES_DESCRIPTION,
+    image: `${SITE_URL}/demo/auto-after.jpg`,
+    schema: [
+      {
+        '@context': 'https://schema.org',
+        '@type': 'BreadcrumbList',
+        itemListElement: [
+          { '@type': 'ListItem', position: 1, name: 'Home', item: SITE_URL },
+          { '@type': 'ListItem', position: 2, name: 'Video tools', item: `${SITE_URL}/#video-tools` },
+          { '@type': 'ListItem', position: 3, name: 'Remove subtitles from video', item: absoluteUrl('/remove-subtitles-from-video') },
+        ],
+      },
+      {
+        '@context': 'https://schema.org',
+        '@type': 'FAQPage',
+        mainEntity: SUBTITLES_FAQ.map((item) => ({
+          '@type': 'Question',
+          name: item.q,
+          acceptedAnswer: { '@type': 'Answer', text: item.a },
+        })),
+      },
+    ],
+  },
+  '/remove-burned-in-subtitles': {
+    title: 'Remove Burned-In Subtitles — Erase Hardcoded Subs Online',
+    description: BURNED_SUBTITLES_DESCRIPTION,
+    image: `${SITE_URL}/demo/auto-after.jpg`,
+    schema: [
+      {
+        '@context': 'https://schema.org',
+        '@type': 'BreadcrumbList',
+        itemListElement: [
+          { '@type': 'ListItem', position: 1, name: 'Home', item: SITE_URL },
+          { '@type': 'ListItem', position: 2, name: 'Video tools', item: `${SITE_URL}/#video-tools` },
+          { '@type': 'ListItem', position: 3, name: 'Remove burned-in subtitles', item: absoluteUrl('/remove-burned-in-subtitles') },
+        ],
+      },
+      {
+        '@context': 'https://schema.org',
+        '@type': 'FAQPage',
+        mainEntity: BURNED_SUBTITLES_FAQ.map((item) => ({
+          '@type': 'Question',
+          name: item.q,
+          acceptedAnswer: { '@type': 'Answer', text: item.a },
+        })),
+      },
+    ],
+  },
 }
 
 export function metaFor(route: Route): PageMeta {
@@ -191,8 +291,8 @@ export function siteSchema(route: Route = '/'): Record<string, unknown>[] {
       name: SITE_NAME,
       applicationCategory: 'MultimediaApplication',
       operatingSystem: 'Any (web-based)',
-      url: route === '/remove-captions-from-video' ? absoluteUrl(route) : SITE_URL,
-      description: route === '/remove-captions-from-video' ? CAPTIONS_DESCRIPTION :
+      url: route === '/remove-captions-from-video' || route === '/remove-subtitles-from-video' || route === '/remove-burned-in-subtitles' ? absoluteUrl(route) : SITE_URL,
+      description: route === '/remove-captions-from-video' ? CAPTIONS_DESCRIPTION : route === '/remove-subtitles-from-video' ? SUBTITLES_DESCRIPTION : route === '/remove-burned-in-subtitles' ? BURNED_SUBTITLES_DESCRIPTION :
         'Online AI tool that removes hardcoded subtitles and burned-in captions from video by reconstructing the background behind them.',
       offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
     },

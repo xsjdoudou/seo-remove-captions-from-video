@@ -104,7 +104,7 @@ function sitemap(routes, toUrl) {
   const entries = routes
     .map((route) => {
       // 首页是入口,优先级最高;法务页给搜索引擎的价值最低。
-      const priority = route === '/' ? '1.0' : route === '/how-it-works' ? '0.8' : '0.3'
+      const priority = route === '/' ? '1.0' : ['/how-it-works', '/remove-subtitles-from-video', '/remove-burned-in-subtitles'].includes(route) ? '0.8' : '0.3'
       return [
         '  <url>',
         `    <loc>${toUrl(route)}</loc>`,
