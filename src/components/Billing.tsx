@@ -5,8 +5,8 @@ import { fetchServiceConfig } from '../lib/api'
 type Balance = { total: number; permanent: number; subscription: number; plan: string | null }
 
 const plans = [
-  { id: 'onetime', name: 'One-time', description: 'For the occasional video.', price: '2.90', credits: '300', auto: '5 min', box: null, monthly: false },
-  { id: 'starter', name: 'Starter', description: 'For a few short videos each month.', price: '4.90', credits: '600', auto: '10 min', box: null, monthly: true },
+  { id: 'onetime', name: 'One-time', description: 'For the occasional video.', price: '2.90', credits: '300', auto: '5 min', box: '1 min 40 sec', monthly: false },
+  { id: 'starter', name: 'Starter', description: 'For a few short videos each month.', price: '4.90', credits: '600', auto: '10 min', box: '3 min 20 sec', monthly: true },
   { id: 'pro', name: 'Pro', description: 'For regular projects and more control.', price: '14.90', credits: '3,600', auto: '60 min', box: '20 min', monthly: true },
   { id: 'business', name: 'Business', description: 'For teams with a larger workload.', price: '39.90', credits: '12,000', auto: '200 min', box: '66 min 40 sec', monthly: true },
 ]
@@ -105,7 +105,7 @@ export default function Billing() {
                 <li>{plan.credits} credits{plan.monthly ? ' / month' : ''}</li>
                 <li>Up to {plan.auto} of Auto{plan.box && <> or {plan.box} of Box select</>}</li>
                 <li>Automatic subtitle removal</li>
-                <li>{plan.box ? 'Manual region selection' : 'Manual selection requires Pro or Business'}</li>
+                <li>Manual region selection</li>
               </ul>
             </div>
             <div className="billing__action">

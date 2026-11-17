@@ -48,9 +48,6 @@ test('billing requires login and grants each account credits only once', async (
     const response = await fetch(base + '/api/billing/account', { headers: { cookie } })
     assert.equal((await response.json()).balance.total, 15)
   }
-  const manual = await fetch(base + '/api/jobs?area=0,0,0.5,0.5', { method: 'POST', headers: { cookie } })
-  assert.equal(manual.status, 403)
-  assert.equal((await manual.json()).error.code, 'plan_required')
   const videoFile = path.join(dir, 'test.mp4')
   const ffmpeg = spawnSync('ffmpeg', ['-loglevel', 'error', '-f', 'lavfi', '-i', 'color=size=16x16:rate=1',
     '-t', '16', '-c:v', 'mpeg4', '-y', videoFile])
@@ -79,11 +76,35 @@ test('billing requires login and grants each account credits only once', async (
       body: JSON.stringify({ email: 'other@example.com', password: 'password123', confirmPassword: 'password123' }),
     })
     const otherCookie = otherRegister.headers.get('set-cookie').split(';')[0]
-    const otherManual = await fetch(base + '/api/jobs?area=0,0,0.5,0.5', {
-      method: 'POST', headers: { cookie: otherCookie },
+    const otherId = (await otherRegister.json()).user.id
+    const video = await fs.readFile(videoFile)
+    const manualUpload = (userCookie) => fetch(base + '/api/jobs?area=0,0,0.5,0.5&expectedCredits=48', {
+      method: 'POST', headers: { cookie: userCookie, 'content-type': 'video/mp4', 'x-filename': 'test.mp4' },
+      body: video,
     })
-    assert.equal(otherManual.status, 403)
-    assert.equal((await otherManual.json()).error.code, 'plan_required')
+    const insufficient = await manualUpload(otherCookie)
+    assert.equal(insufficient.status, 402)
+    assert.equal((await insufficient.json()).error.requiredCredits, 48)
+    ledger.grantPermanent(otherId, 'one-time-test', 300)
+    const oneTimeUpload = await manualUpload(otherCookie)
+    assert.equal(oneTimeUpload.status, 201)
+    const oneTimeJob = (await oneTimeUpload.json()).job
+    assert.equal(ledger.balance(otherId).total, 267)
+
+    const starterRegister = await fetch(base + '/api/auth/register', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: 'starter@example.com', password: 'password123', confirmPassword: 'password123' }),
+    })
+    const starterCookie = starterRegister.headers.get('set-cookie').split(';')[0]
+    const starterId = (await starterRegister.json()).user.id
+    const now = Date.now()
+    ledger.grantSubscription(starterId, 'starter-test', {
+      plan: 'starter', periodId: 'starter-period', periodStart: now - 1000, periodEnd: now + 86400_000,
+    })
+    const starterUpload = await manualUpload(starterCookie)
+    assert.equal(starterUpload.status, 201)
+    const starterJob = (await starterUpload.json()).job
+    assert.equal(ledger.balance(starterId).total, 567)
     const fullAccount = await fetch(base + '/api/billing/account', { headers: { cookie } })
     assert.equal((await fullAccount.json()).fullAccess, true)
     const fullUpload = await fetch(base + '/api/jobs?area=0,0,0.5,0.5', {
@@ -95,11 +116,13 @@ test('billing requires login and grants each account credits only once', async (
     assert.equal(fullJob.mode, 'box')
     assert.equal(store.get(fullJob.id).billable, false)
     assert.equal(ledger.balance(userId).total, 15)
-    assert.equal(ledger.pendingReservations().length, 0)
-    for (let i = 0; i < 100 && !store.get(fullJob.id).taskId; i++) {
+    assert.equal(ledger.pendingReservations().filter((reservation) => reservation.user_id === userId).length, 0)
+    for (let i = 0; i < 100 && [fullJob, oneTimeJob, starterJob].some((job) => !store.get(job.id).taskId); i++) {
       await new Promise((resolve) => setTimeout(resolve, 20))
     }
     assert.equal(store.get(fullJob.id).taskId, 'test-task')
+    assert.equal(store.get(oneTimeJob.id).taskId, 'test-task')
+    assert.equal(store.get(starterJob.id).taskId, 'test-task')
   }
   ledger.createCheckout('order_test', userId, 'onetime')
   const raw = JSON.stringify({ id: 'event1', eventId: 'payment1', timestamp: new Date().toISOString(),

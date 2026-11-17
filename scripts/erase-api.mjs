@@ -451,9 +451,6 @@ async function createJob(req, res, { config, store, pipeline, url, session, ledg
     return sendJson(res, 401, { error: { code: 'not_signed_in', message: 'Sign in to process a video.' } })
   }
   const fullAccess = hasFullAccess(config, session?.id)
-  if (ledger && !fullAccess && mode === 'box' && !['pro', 'business'].includes(ledger.ensureAccount(session.id).plan)) {
-    return sendJson(res, 403, { error: { code: 'plan_required', message: 'Manual area selection requires Pro or Business.' } })
-  }
   if (ledger) ledger.ensureAccount(session.id)
 
   const ip = clientIp(req, config)
