@@ -21,7 +21,7 @@ import { PrivacyPage, TermsPage } from './components/LegalPage'
  * ——那是 50KB 的 JS，而这个站的卖点之一就是打开得快。
  */
 export default function App({ initialRoute = '/' }: { initialRoute?: string }) {
-  const [route, setRoute] = useState<Route>(() => normalize(initialRoute))
+  const [route, setRoute] = useState<Route | null>(() => normalize(initialRoute))
 
   // 预渲染时 initialRoute 由构建脚本给；浏览器里首次挂载要以地址栏为准，
   // 否则用户直接打开 /how-it-works 会看到首页内容。
@@ -76,20 +76,22 @@ export default function App({ initialRoute = '/' }: { initialRoute?: string }) {
   }, [])
 
   useEffect(() => {
-    applyMeta(route)
+    if (route) applyMeta(route)
+    else document.title = 'Page not found'
   }, [route])
 
   const navigate = useCallback((next: string) => {
     const target = normalize(next)
-    window.history.pushState({}, '', target)
+    window.history.pushState({}, '', target ?? next)
     setRoute(target)
     window.scrollTo({ top: 0 })
   }, [])
 
   return (
     <div className="shell">
-      <Navbar route={route} onNavigate={navigate} />
+      <Navbar route={route ?? ''} onNavigate={navigate} />
       <main id="main">
+        {route === null && <section className="section"><h1>This page does not exist.</h1><a href="/">Return to the home page</a></section>}
         {route === '/' && <HomePage onNavigate={navigate} />}
         {route === '/remove-captions-from-video' && <CaptionsPage onNavigate={navigate} />}
         {route === '/remove-subtitles-from-video' && <SubtitlesPage onNavigate={navigate} />}
@@ -104,8 +106,8 @@ export default function App({ initialRoute = '/' }: { initialRoute?: string }) {
   )
 }
 
-/** 未知路径落回首页，而不是显示空白——SEO 上一个空页面比重定向更糟。 */
-function normalize(pathname: string): Route {
+/** Unknown client-side paths show the same message as the server's 404 page. */
+function normalize(pathname: string): Route | null {
   const trimmed = pathname.replace(/\/+$/, '') || '/'
-  return isRoute(trimmed) ? trimmed : '/'
+  return isRoute(trimmed) ? trimmed : null
 }

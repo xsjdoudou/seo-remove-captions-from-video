@@ -27,6 +27,7 @@ test('nginx redirects page trailing slashes without redirect loops', { skip: !ng
   await fsp.mkdir(path.join(dir, 'remove-burned-in-subtitles'))
   await fsp.writeFile(path.join(dir, 'remove-burned-in-subtitles', 'index.html'), 'Burned subtitles')
   await fsp.writeFile(path.join(dir, 'index.html'), 'Home')
+  await fsp.copyFile(new URL('../public/404.html', import.meta.url), path.join(dir, '404.html'))
   const socket = net.createServer()
   socket.listen(0, '127.0.0.1')
   await once(socket, 'listening')
@@ -41,6 +42,8 @@ http {
   server {
     listen 127.0.0.1:${port};
     root ${dir};
+    error_page 404 /404.html;
+    location = /404.html { internal; }
     ${redirect}
     ${staticLocation}
   }
@@ -94,4 +97,15 @@ http {
   response = await fetch(`${base}/`, { redirect: 'manual' })
   assert.equal(response.status, 200)
   assert.equal(await response.text(), 'Home')
+  for (const url of ['/missing-page', '/missing-page/', '/nested/missing', '/missing-image.jpg']) {
+    response = await fetch(`${base}${url}`, { redirect: 'manual' })
+    assert.equal(response.status, 404, url)
+    const body = await response.text()
+    assert.match(body, /This page does not exist\./)
+    assert.match(body, /href="\/"/)
+    assert.doesNotMatch(body, /<title>Remove Text from Video/)
+  }
+  response = await fetch(`${base}/missing-page`, { method: 'HEAD' })
+  assert.equal(response.status, 404)
+  assert.equal(await response.text(), '')
 })

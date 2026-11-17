@@ -4,8 +4,10 @@ import { fileURLToPath } from 'node:url'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
+import { isRoute } from './src/config'
 
 const DIST = fileURLToPath(new URL('./dist', import.meta.url))
+const PUBLIC = fileURLToPath(new URL('./public', import.meta.url))
 
 /**
  * 让 `vite preview` 发出预渲染的页面，而不是一律回退到首页。
@@ -20,42 +22,42 @@ const DIST = fileURLToPath(new URL('./dist', import.meta.url))
  * 和 deploy/nginx.conf.example 里那条 try_files 的行为对齐。
  */
 function prerenderedPages(): Plugin {
+  const middleware = (preview: boolean) => (req: IncomingMessage, res: ServerResponse, next: () => void) => {
+    if (req.method !== 'GET' && req.method !== 'HEAD') return next()
+    const raw = req.url ?? '/'
+    const queryAt = raw.indexOf('?')
+    const pathname = queryAt === -1 ? raw : raw.slice(0, queryAt)
+    const query = queryAt === -1 ? '' : raw.slice(queryAt)
+    if (pathname === '/' || pathname.startsWith('/@') || pathname.startsWith('/__') || path.extname(pathname)) return next()
+    const clean = pathname.replace(/\/+$/, '')
+    if (isRoute(clean)) {
+      if (pathname.endsWith('/')) {
+        res.statusCode = 301
+        res.setHeader('Location', `${clean}${query}`)
+        res.end()
+        return
+      }
+      req.url = preview ? `${clean}/index.html${query}` : `/index.html${query}`
+      return next()
+    }
+    // Existing extensionless public assets should continue to be served normally.
+    const root = preview ? DIST : PUBLIC
+    const candidate = path.resolve(root, `.${pathname}`)
+    if (candidate.startsWith(root + path.sep) && fs.existsSync(candidate) && fs.statSync(candidate).isFile()) return next()
+    const html = fs.readFileSync(path.join(preview ? DIST : PUBLIC, '404.html'))
+    res.statusCode = 404
+    res.setHeader('Content-Type', 'text/html; charset=utf-8')
+    res.end(req.method === 'HEAD' ? undefined : html)
+  }
   return {
     name: 'prerendered-pages',
+    configureServer(server) {
+      server.middlewares.use(middleware(false))
+    },
     configurePreviewServer: async (server) => {
-      server.middlewares.use(((req: never, res: never, next: never) => {
-        if (rewriteToPrerendered(req as unknown as IncomingMessage, res as unknown as ServerResponse)) return
-        ;(next as unknown as () => void)()
-      }) as never)
+      server.middlewares.use(middleware(true))
     },
   }
-}
-
-/** 把 /route 改写成 /route/index.html（仅当这个文件真的存在时）。 */
-function rewriteToPrerendered(req: { url?: string }, res: ServerResponse): boolean {
-  const raw = req.url ?? '/'
-  const queryAt = raw.indexOf('?')
-  const pathname = queryAt === -1 ? raw : raw.slice(0, queryAt)
-  const query = queryAt === -1 ? '' : raw.slice(queryAt)
-
-  // 带扩展名的是静态资源，根路径本来就命中 index.html，都不用管。
-  if (pathname === '/' || path.extname(pathname)) return false
-
-  const clean = pathname.replace(/\/+$/, '')
-  const candidate = path.join(DIST, clean, 'index.html')
-  // path.join 会解析掉 ../，这一步确认改写目标没有跑出 dist 之外。
-  if (!candidate.startsWith(DIST + path.sep)) return false
-  if (!fs.existsSync(candidate)) return false
-
-  if (pathname.endsWith('/')) {
-    res.statusCode = 301
-    res.setHeader('Location', `${clean}${query}`)
-    res.end()
-    return true
-  }
-
-  req.url = `${clean}/index.html${query}`
-  return false
 }
 
 /**
@@ -92,6 +94,7 @@ function eraseApi(): Plugin {
 }
 
 export default defineConfig({
+  appType: 'mpa',
   // eraseApi 排在前面：/api、/s、/r 由它接管，剩下的才轮到页面改写。
   plugins: [react(), eraseApi(), prerenderedPages()],
   server: {

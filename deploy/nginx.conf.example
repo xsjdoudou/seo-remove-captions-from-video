@@ -61,6 +61,11 @@ server {
 
     root /srv/removetextfromvideo/dist;
     index index.html;
+    error_page 404 /404.html;
+
+    location = /404.html {
+        internal;
+    }
 
     # 必须 >= .env 里的 MAX_UPLOAD_BYTES，否则 nginx 会在后端看到请求之前
     # 就回 413，用户拿到的是一个没有样式的 nginx 错误页。
@@ -150,7 +155,7 @@ server {
 
     # 先检查目录里的 index.html，避免 nginx 将无斜杠地址重定向到目录。
     location / {
-        try_files $uri/index.html $uri $uri/ /index.html;
+        try_files $uri/index.html $uri $uri/ =404;
         add_header Cache-Control "public, max-age=300";
         add_header X-Content-Type-Options nosniff always;
         add_header X-Frame-Options SAMEORIGIN always;
