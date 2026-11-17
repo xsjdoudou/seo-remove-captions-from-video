@@ -16,7 +16,8 @@ export default function Billing() {
   const [balance, setBalance] = useState<Balance | null>(null)
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
-  const [billingEnabled, setBillingEnabled] = useState(false)
+  const [billingEnabled, setBillingEnabled] = useState<boolean | null>(null)
+  const [configUnavailable, setConfigUnavailable] = useState(false)
   const [testMode, setTestMode] = useState(true)
   const [subscriptionsEnabled, setSubscriptionsEnabled] = useState(false)
 
@@ -29,7 +30,7 @@ export default function Billing() {
         setTestMode(config.billingTestMode !== false)
         setSubscriptionsEnabled(Boolean(config.testSubscriptionsEnabled))
       }
-    }).catch(() => {})
+    }).catch(() => { if (active) setConfigUnavailable(true) })
     return () => { active = false }
   }, [])
   useEffect(() => {
@@ -108,7 +109,7 @@ export default function Billing() {
             </div>
             <div className="billing__action">
                 <button className="btn btn--primary" disabled={!billingEnabled || (plan.monthly && !subscriptionsEnabled) || !auth.user || busy || (plan.monthly && !!balance?.plan)} onClick={() => void checkout(plan.id)}>
-                  {!billingEnabled || (plan.monthly && !subscriptionsEnabled) ? 'Coming soon' : !auth.user ? 'Sign in to continue' : plan.monthly && balance?.plan ? 'Subscription active' : busy ? 'Opening...' : testMode ? 'Test checkout' : 'Checkout'}
+                  {billingEnabled === null ? (configUnavailable ? 'Availability unavailable' : 'Checking availability...') : !billingEnabled || (plan.monthly && !subscriptionsEnabled) ? 'Coming soon' : !auth.user ? 'Sign in to continue' : plan.monthly && balance?.plan ? 'Subscription active' : busy ? 'Opening...' : testMode ? 'Test checkout' : 'Checkout'}
                 </button>
             </div>
           </article>
