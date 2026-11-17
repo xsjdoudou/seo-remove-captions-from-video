@@ -9,6 +9,8 @@
 
 import { SITE_NAME, SITE_URL, absoluteUrl, type Route } from './config'
 
+const SHARED_OG_IMAGE = `${SITE_URL}/demo/share-comparison.jpg`
+
 export interface PageMeta {
   title: string
   description: string
@@ -139,6 +141,7 @@ const HOME_META: PageMeta = {
   title: 'Remove Text from Video — Free AI Subtitle & Caption Remover',
   description:
     'Remove text from video, including hardcoded subtitles and captions. AI rebuilds the background without cropping or adding a watermark.',
+  image: SHARED_OG_IMAGE,
   schema: [
     {
       '@context': 'https://schema.org',
@@ -182,10 +185,12 @@ const META: Record<Route, PageMeta> = {
     title: `How AI Subtitle Removal Works — Inpainting Explained | ${SITE_NAME}`,
     description:
       'A plain-English walkthrough of how burned-in subtitles are removed from video: text detection, masking, and temporal inpainting that rebuilds the background behind the letters.',
+    image: SHARED_OG_IMAGE,
   },
   '/pricing': {
     title: `Pricing | ${SITE_NAME}`,
     description: 'Compare credit packages and monthly plans for removing subtitles from video.',
+    image: SHARED_OG_IMAGE,
   },
   '/privacy': {
     title: `Privacy Policy | ${SITE_NAME}`,
