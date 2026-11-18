@@ -8,7 +8,7 @@ import { CONTACT_EMAIL, SITE_NAME } from '../config'
  * 真出事时也帮不了你。改了保留策略记得回来改这一页。
  */
 
-const UPDATED = 'November 17, 2026'
+const UPDATED = 'November 18, 2026'
 const TERMS_UPDATED = 'November 13, 2026'
 
 export function PrivacyPage() {
@@ -60,11 +60,19 @@ export function PrivacyPage() {
       </p>
       <p>
         We then set one cookie, so you stay signed in for up to 30 days. It holds a signed reference to your account and
-        nothing else: no tracking identifier, no analytics, no advertising. Signing out deletes it.
+        nothing else: no tracking identifier, no analytics, no advertising. Signing out deletes this sign-in cookie.
       </p>
       <p>
         Want your account removed? Write to <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a> and we will delete
         your profile and every job record attached to it.
+      </p>
+
+      <h2>Analytics</h2>
+      <p>
+        We use Google Analytics to understand visits and how people use the video tool. Google Analytics may use
+        cookies and collect information such as page views, device and browser details, IP address, and interactions
+        with the site. Our custom events include upload, processing, and download activity, and may include file type
+        and approximate file size; they do not include video files, filenames, or account details.
       </p>
 
       <h2>The &ldquo;your videos&rdquo; list</h2>
@@ -102,11 +110,7 @@ export function PrivacyPage() {
         <li>We do not publish, share or sell your videos.</li>
         <li>We do not use your videos to train models.</li>
         <li>We do not watch or review your content except where we are legally required to.</li>
-        <li>We do not run advertising or third-party tracking scripts on this site.</li>
-        <li>
-          We set no cookie at all unless you sign in, and the one we then set exists only to keep you signed in. We do
-          not use cookies to track you across sites.
-        </li>
+        <li>We do not run advertising on this site.</li>
       </ul>
 
       <h2>Your choices</h2>
