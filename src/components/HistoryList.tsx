@@ -11,6 +11,7 @@ import {
 } from '../lib/history'
 import { getAuthState, subscribeAuth } from '../lib/auth'
 import { formatBytes, formatDuration, shortStatusLabel } from '../lib/format'
+import { trackEvent } from '../lib/analytics'
 import { ChevronIcon, DownloadIcon, ClockIcon } from './icons'
 
 const TERMINAL: HistoryEntry['status'][] = ['completed', 'failed', 'expired']
@@ -175,7 +176,7 @@ function HistoryRow({ entry }: { entry: HistoryEntry }) {
       return (
         <Row entry={entry} badge={<span className="badge badge--ok">Ready</span>}>
           {entry.downloadUrl && (
-            <a className="btn btn--ghost btn--sm" href={entry.downloadUrl} download>
+            <a className="btn btn--ghost btn--sm" href={entry.downloadUrl} download onClick={() => trackEvent('download_click')}>
               <DownloadIcon className="icon" /> Download
             </a>
           )}

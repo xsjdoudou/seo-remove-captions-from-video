@@ -14,6 +14,7 @@ import {
 import { formatBytes, formatDuration, progressFor, statusLabel } from '../lib/format'
 import { upsertEntry, removeEntry as removeHistoryEntry } from '../lib/history'
 import { estimateCredits, resolutionOptions, resolutionRate, type VideoInfo } from '../lib/resolution'
+import { trackEvent } from '../lib/analytics'
 import { AlertIcon, CheckIcon, DownloadIcon, UploadIcon } from './icons'
 
 type Phase = 'idle' | 'ready' | 'selecting' | 'uploading' | 'processing' | 'done' | 'error' | 'credits'
@@ -150,6 +151,10 @@ export default function Workspace({ mode, onBusyChange, ariaLabel = 'Remove subt
       setUploadFraction(0)
 
       const estimate = videoInfo ? estimateCredits(videoInfo, boxes.length ? 'box' : 'auto', resolution) : undefined
+      trackEvent('upload_start', {
+        file_type: file.type,
+        file_size_mb: Math.round(file.size / 1024 / 1024),
+      })
       const { promise, abort } = uploadVideo(file, {
         onProgress: setUploadFraction, areas: boxes, resolution, expectedCredits: confirmedCredits ?? estimate,
       })
@@ -176,6 +181,8 @@ export default function Workspace({ mode, onBusyChange, ariaLabel = 'Remove subt
       }
 
       abortRef.current = null
+      trackEvent('upload_success')
+      trackEvent('process_start')
       window.dispatchEvent(new Event('credits-changed'))
       setJob(created)
       setPhase('processing')
@@ -195,13 +202,16 @@ export default function Workspace({ mode, onBusyChange, ariaLabel = 'Remove subt
         })
         upsertEntry(finished)
         if (finished.status === 'completed') {
+          if (finished.resultUrl) trackEvent('process_success')
           setPhase('done')
         } else {
+          trackEvent('process_error', { error_type: finished.status })
           setPhase('error')
           setMessage(finished.error?.message ?? 'Processing failed.')
         }
       } catch (err) {
         if (err instanceof ApiError && err.code === 'aborted') return
+        trackEvent('process_error', { error_type: 'polling_error' })
         setPhase('error')
         setMessage(err instanceof Error ? err.message : 'Lost contact with the server.')
       } finally {
@@ -737,7 +747,8 @@ export default function Workspace({ mode, onBusyChange, ariaLabel = 'Remove subt
               <button type="button" className="btn btn--ghost btn--sm" onClick={startOver}>
                 Do another
               </button>
-              <a className="btn btn--primary btn--sm" href={job.downloadUrl ?? job.resultUrl ?? '#'} download>
+              <a className="btn btn--primary btn--sm" href={job.downloadUrl ?? job.resultUrl ?? '#'} download
+                onClick={() => { if (job.downloadUrl || job.resultUrl) trackEvent('download_click') }}>
                 <DownloadIcon className="icon" /> Download MP4
               </a>
             </>
