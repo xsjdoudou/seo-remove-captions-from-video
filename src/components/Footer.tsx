@@ -35,6 +35,9 @@ export default function Footer({ onNavigate }: { onNavigate: (to: string) => voi
           <NavLink href="/remove-subtitles-from-video" onNavigate={onNavigate}>Remove subtitles from video</NavLink>
           <NavLink href="/remove-burned-in-subtitles" onNavigate={onNavigate}>Remove burned-in subtitles</NavLink>
         </nav>
+        <a href="https://neeed.directory/products/removetextfromvideo?utm_source=removetextfromvideo" target="_blank" rel="noopener">
+          <img src="https://neeed.directory/badges/neeed-badge-light.svg" alt="Featured on neeed.directory" width="139" />
+        </a>
       </div>
       <p className="footer__legal">
         © {new Date().getFullYear()} {SITE_NAME}. Only upload videos you own or have permission to edit.
