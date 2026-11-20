@@ -38,6 +38,9 @@ export default function Footer({ onNavigate }: { onNavigate: (to: string) => voi
         <a href="https://neeed.directory/products/removetextfromvideo?utm_source=removetextfromvideo" target="_blank" rel="noopener">
           <img src="https://neeed.directory/badges/neeed-badge-light.svg" alt="Featured on neeed.directory" width="139" />
         </a>
+        <a href="https://www.aiwizard.ai/" target="_blank" rel="noopener" title="remove text from video on aiwizard">
+          <img src="https://www.aiwizard.ai/badges/featured-on-aiwizard-dark.svg" alt="remove text from video featured on aiwizard, the AI tools directory" width="250" height="54" />
+        </a>
       </div>
       <p className="footer__legal">
         © {new Date().getFullYear()} {SITE_NAME}. Only upload videos you own or have permission to edit.
